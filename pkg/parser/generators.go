@@ -6,7 +6,7 @@ import (
 	"html/template"
 	"os"
 
-	"github.com/marcom4rtinez/infrahub-terraform-provider-generator/pkg/templates"
+	"github.com/opsmill/infrahub-terraform-provider-generator/pkg/templates"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -148,6 +148,10 @@ func generateTerraformResource(parsedQuery *InputGraphQLQuery) (string, error) {
 		QueryName:               parsedQuery.QueryName,
 		ObjectName:              parsedQuery.ObjectName,
 		Required:                parsedQuery.Required,
+		ReadOp:                  parsedQuery.ReadOp,
+		CreateOp:                parsedQuery.CreateOp,
+		UpsertOp:                parsedQuery.UpsertOp,
+		DeleteOp:                parsedQuery.DeleteOp,
 		StructName:              structName,
 		Fields:                  parsedQuery.Fields,
 		GenqlientFields:         parsedQuery.GenqlientFields,

@@ -62,6 +62,42 @@ func parseResourceInput(lines []string) (InputGraphQLQuery, error) {
 	var fields []Field
 	var genqlientFields, genqlientFieldsModify, genqlientFieldsReadOnly []GenqlientField
 
+	// Capture the actual operation names as written in the .gql so the generated
+	// code calls the matching genqlient functions. genqlient names each generated
+	// function after the GraphQL operation, so the query/mutation operation names
+	// (not the query alias or the object kind) are what must be used.
+	var readOp, createOp, upsertOp, deleteOp string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		isQuery := strings.HasPrefix(trimmed, "query ")
+		isMutation := strings.HasPrefix(trimmed, "mutation ")
+		if !isQuery && !isMutation {
+			continue
+		}
+		parts := strings.Fields(trimmed)
+		if len(parts) < 2 {
+			continue
+		}
+		opName := parts[1]
+		if i := strings.IndexByte(opName, '('); i != -1 {
+			opName = opName[:i]
+		}
+		opName = strings.TrimRight(strings.TrimSpace(opName), "{(")
+		if opName == "" {
+			continue
+		}
+		switch {
+		case isQuery:
+			readOp = opName
+		case strings.HasSuffix(opName, "Create"):
+			createOp = opName
+		case strings.HasSuffix(opName, "Upsert"):
+			upsertOp = opName
+		case strings.HasSuffix(opName, "Delete"):
+			deleteOp = opName
+		}
+	}
+
 	index := 0
 	for number, line := range lines {
 		line = strings.TrimSpace(line)
@@ -189,15 +225,23 @@ func parseResourceInput(lines []string) (InputGraphQLQuery, error) {
 			}
 		}
 
+		// Scalar attributes are selected as `attr { value }`, so genqlient nests
+		// the string under a `.Value` field. The id is read through GetId() and
+		// must not get a `.Value` suffix.
+		valueSuffix := ".Value"
+		if len(plain) > 0 && plain[len(plain)-1] == "GetId()" {
+			valueSuffix = ""
+		}
+
 		newField := GenqlientField{
 			Field: Field{
 				Name: entry.Name,
 				Type: entry.Type,
 			},
-			Query:                  objectName + "." + strings.Join(parts, "."),
+			Query:                  objectName + "." + strings.Join(parts, ".") + valueSuffix,
 			QueryNoPrefixReplaceId: strings.Join(noPrefix, "."),
 			InputObjectNames:       strings.Join(filtered, "."),
-			PlainObject:            strings.Join(plain[2:], "."),
+			PlainObject:            strings.Join(plain[2:], ".") + valueSuffix,
 		}
 
 		if strings.Count(strings.ToLower(newField.Query), "node") < 2 && strings.Count(strings.ToLower(newField.Query), "id") < 1 {
@@ -218,10 +262,29 @@ func parseResourceInput(lines []string) (InputGraphQLQuery, error) {
 	addHumanReadableField(genqlientFieldsReadOnly)
 	addHumanReadableField(genqlientFieldsModify)
 
+	// Fall back to the Infrahub naming convention (<Kind><Op>) when an operation
+	// name could not be read from the .gql.
+	if readOp == "" && queryName != "" {
+		readOp = strings.ToUpper(queryName[:1]) + queryName[1:]
+	}
+	if createOp == "" {
+		createOp = objectName + "Create"
+	}
+	if upsertOp == "" {
+		upsertOp = objectName + "Upsert"
+	}
+	if deleteOp == "" {
+		deleteOp = objectName + "Delete"
+	}
+
 	return InputGraphQLQuery{
 		QueryName:               queryName,
 		ObjectName:              objectName,
 		Required:                required,
+		ReadOp:                  readOp,
+		CreateOp:                createOp,
+		UpsertOp:                upsertOp,
+		DeleteOp:                deleteOp,
 		GenqlientFields:         genqlientFields,
 		genqlientFieldsReadOnly: genqlientFieldsReadOnly,
 		genqlientFieldsModify:   genqlientFieldsModify,

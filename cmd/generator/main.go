@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/marcom4rtinez/infrahub-terraform-provider-generator/pkg/parser"
+	"github.com/opsmill/infrahub-terraform-provider-generator/pkg/parser"
 )
 
 func main() {
