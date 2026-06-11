@@ -1,0 +1,25 @@
+go.mod
+  s_0340d840bef05d::t_7ca59866e53551 1
+cmd/generator/main.go
+  s_0340d840bef05d::t_0d23cd3f427422 9
+README.md
+  s_0340d840bef05d::t_187d7cd9994193 6
+pkg/parser/generators.go
+  s_0340d840bef05d::t_8bc977525c91ef 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "aba43683509670425bdbaf44bb97a5556a1c9e8e",
+  "prompts": {},
+  "sessions": {
+    "s_0340d840bef05d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dff9c4bc-b359-4de8-afe1-3702a355ecb7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Benoit Kohler <benoit@opsmill.com>"
+    }
+  }
+}
