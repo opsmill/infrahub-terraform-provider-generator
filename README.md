@@ -3,7 +3,7 @@
 This Go application generates a custom Terraform Provider for Infrahub. Supply it with GraphQL queries, and it will return their respective Data Sources or Resources.
 
 ```bash
-go run github.com/marcom4rtinez/infrahub-terraform-provider-generator/cmd/generator --help
+go run github.com/opsmill/infrahub-terraform-provider-generator/cmd/generator --help
 Usage of Generator:
   -gql-dir string
         Directory with GraphQL queries (default "gql")

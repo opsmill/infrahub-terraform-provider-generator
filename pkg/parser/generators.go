@@ -6,7 +6,7 @@ import (
 	"html/template"
 	"os"
 
-	"github.com/marcom4rtinez/infrahub-terraform-provider-generator/pkg/templates"
+	"github.com/opsmill/infrahub-terraform-provider-generator/pkg/templates"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )

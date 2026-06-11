@@ -1,4 +1,4 @@
-module github.com/marcom4rtinez/infrahub-terraform-provider-generator
+module github.com/opsmill/infrahub-terraform-provider-generator
 
 go 1.23.4
 
