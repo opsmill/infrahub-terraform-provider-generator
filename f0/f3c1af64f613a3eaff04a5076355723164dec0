@@ -1,0 +1,19 @@
+README.md
+  s_904de3c86c4d9e::t_ded85f36a67672 3-35,38,41-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "f0f3c1af64f613a3eaff04a5076355723164dec0",
+  "prompts": {},
+  "sessions": {
+    "s_904de3c86c4d9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b32ad765-f235-40d3-a4d6-006540f081ba",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Benoit Kohler <benoit+claude@opsmill.com>"
+    }
+  }
+}
