@@ -28,6 +28,9 @@ func New{{.QueryName | title }}Resource() resource.Resource {
 // {{.QueryName }}Resource is the resource implementation.
 type {{.QueryName }}Resource struct {
 	client         *graphql.Client
+	{{- if .Required }}
+	{{ .Required | title }} types.String ` + "`tfsdk:\"{{ .Required }}\"`" + `
+	{{- end }}
 	{{- range .GenqlientFields }}
 	{{ .Name | title }} types.String ` + "`tfsdk:\"{{ .HumanReadableName }}\"`" + `
 	{{- end }}
@@ -42,23 +45,21 @@ func (r *{{.QueryName}}Resource) Metadata(_ context.Context, req resource.Metada
 func (r *{{.QueryName}}Resource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
+			{{- if .Required }}
+			"{{ .Required }}": schema.StringAttribute{
+				Required: true,
+			},
+			{{- end }}
 			{{- range .GenqlientFieldsReadOnly }}
 			"{{ .HumanReadableName }}": schema.StringAttribute{
 				Computed: true,
 			},
 			{{- end }}
-			{{- $requiredName :=  .Required  }}
 			{{- range .GenqlientFieldsModify }}
-				{{- if eq .Name $requiredName }}
-					"{{.HumanReadableName}}": schema.StringAttribute{
-						Required: true,
-					},
-				{{- else }}
-					"{{ .HumanReadableName }}": schema.StringAttribute{
-						Computed: true,
-						Optional: true,
-					},
-				{{- end }}
+			"{{ .HumanReadableName }}": schema.StringAttribute{
+				Computed: true,
+				Optional: true,
+			},
 			{{- end }}
 		},
 	}
@@ -78,15 +79,18 @@ func (r *{{.QueryName}}Resource) Create(ctx context.Context, req resource.Create
 
 	var default{{ .QueryName | title }} infrahub_sdk.{{ .ObjectName }}CreateInput
 
-	// Assign each field, using the helper function to handle defaults
+	// Assign each attribute, wrapping the value in the Infrahub input type.
 	{{- $defaultCreate :=  .QueryName | title  }}
+	{{- if .Required }}
+	default{{$defaultCreate}}.{{ .Required | title }} = infrahub_sdk.TextAttributeCreate{Value: plan.{{ .Required | title }}.ValueString()}
+	{{- end }}
 	{{- range .GenqlientFieldsModify }}
-	default{{$defaultCreate}}.{{ .InputObjectNames }} = plan.{{ .Name | title }}.ValueString()
+	default{{$defaultCreate}}.{{ .InputObjectNames }} = infrahub_sdk.TextAttributeCreate{Value: plan.{{ .Name | title }}.ValueString()}
 	{{- end }}
 
 	tflog.Info(ctx, fmt.Sprint("Creating {{ .QueryName | title }} ", plan.{{.Required | title }}))
 
-	response, err := infrahub_sdk.{{ .QueryName | title }}Create(ctx, *r.client, default{{ .QueryName | title }})
+	response, err := infrahub_sdk.{{ .CreateOp }}(ctx, *r.client, default{{ .QueryName | title }})
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to create {{ .QueryName }} in Infrahub",
@@ -124,8 +128,8 @@ func (r *{{.QueryName}}Resource) Read(ctx context.Context, req resource.ReadRequ
 
 	tflog.Info(ctx, fmt.Sprint("Reading {{ .QueryName | title }} ", state.{{ .Required | title }}))
 
-	// Call the API with the specified device_name from the configuration
-	response, err := infrahub_sdk.{{ .QueryName | title }}(ctx, *r.client, state.{{ .Required | title }}.ValueString())
+	// Call the API with the specified key attribute from the configuration
+	response, err := infrahub_sdk.{{ .ReadOp }}(ctx, *r.client, state.{{ .Required | title }}.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to read {{ .QueryName }} from Infrahub",
@@ -176,8 +180,11 @@ func (r *{{.QueryName}}Resource) Update(ctx context.Context, req resource.Update
 	var updateInput infrahub_sdk.{{ .ObjectName }}UpsertInput
 
 	// Prepare the update input using values from the plan and applying defaults
+	{{- if .Required }}
+	updateInput.{{ .Required | title }} = infrahub_sdk.TextAttributeUpdate{Value: plan.{{ .Required | title }}.ValueString()}
+	{{- end }}
 	{{- range .GenqlientFieldsModify }}
-	updateInput.{{ .InputObjectNames }} = setDefault(plan.{{ .Name | title }}.ValueString(), state.{{ .Name | title }}.ValueString())
+	updateInput.{{ .InputObjectNames }} = infrahub_sdk.TextAttributeUpdate{Value: setDefault(plan.{{ .Name | title }}.ValueString(), state.{{ .Name | title }}.ValueString())}
 	{{- end }}
 	{{- $idElement :=  (index .GenqlientFieldsReadOnly 0).Name | title  }}
 	updateInput.Id = state.{{$idElement}}.ValueString()
@@ -187,7 +194,7 @@ func (r *{{.QueryName}}Resource) Update(ctx context.Context, req resource.Update
 	tflog.Info(ctx, fmt.Sprintf("Updating {{ .QueryName | title }} %s", state.{{ .Required | title }}.ValueString()))
 
 	// Send the update request to the API
-	response, err := infrahub_sdk.{{ .QueryName | title }}Upsert(ctx, *r.client, updateInput)
+	response, err := infrahub_sdk.{{ .UpsertOp }}(ctx, *r.client, updateInput)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to update device in Infrahub",
@@ -220,7 +227,7 @@ func (r *{{.QueryName}}Resource) Delete(ctx context.Context, req resource.Delete
 	}
 
 	{{- $firstId :=  (index .GenqlientFieldsReadOnly 0).Name | title  }}
-	_, err := infrahub_sdk.{{ .QueryName | title }}Delete(ctx, *r.client, state.{{$firstId}}.ValueString())
+	_, err := infrahub_sdk.{{ .DeleteOp }}(ctx, *r.client, state.{{$firstId}}.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Deleting {{ .QueryName | title }}",

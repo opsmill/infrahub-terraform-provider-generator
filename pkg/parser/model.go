@@ -12,6 +12,10 @@ type InputGraphQLQuery struct {
 	QueryName               string
 	ObjectName              string
 	Required                string
+	ReadOp                  string
+	CreateOp                string
+	UpsertOp                string
+	DeleteOp                string
 	Fields                  []Field
 	GenqlientFields         []GenqlientField
 	genqlientFieldsModify   []GenqlientField
@@ -46,6 +50,10 @@ type ResourceTemplateData struct {
 	QueryName               string
 	ObjectName              string
 	Required                string
+	ReadOp                  string
+	CreateOp                string
+	UpsertOp                string
+	DeleteOp                string
 	StructName              string
 	Fields                  []Field
 	GenqlientFields         []GenqlientField
