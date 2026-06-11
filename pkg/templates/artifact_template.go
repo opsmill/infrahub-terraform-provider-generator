@@ -57,7 +57,7 @@ func (d *artifactDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 }
 
 func (d *artifactDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	tflog.Info(ctx, "Reading Artifact...\n")
+	tflog.Info(ctx, "Reading Artifact...")
 	var config artifactDataSource
 
 	diags := req.Config.Get(ctx, &config)
@@ -102,8 +102,9 @@ func (d *artifactDataSource) Read(ctx context.Context, req datasource.ReadReques
 	}
 
 	state := artifactDataSource{
-		ArtifactId: types.StringValue(config.ArtifactId.String()),
-		Content:    types.StringValue(string(body)),
+		ArtifactId:     config.ArtifactId,
+		InfrahubServer: config.InfrahubServer,
+		Content:        types.StringValue(string(body)),
 	}
 
 	diags = resp.State.Set(ctx, &state)

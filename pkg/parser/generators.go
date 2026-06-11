@@ -3,90 +3,101 @@ package parser
 import (
 	"bytes"
 	"fmt"
-	"html/template"
+	"go/format"
 	"os"
+	"path/filepath"
+	"text/template"
 
 	"github.com/opsmill/infrahub-terraform-provider-generator/pkg/templates"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
 
-func ReadAndGenerateProvider(components TerraformComponents, providerDirectory string) {
+// titleCaser title-cases identifiers inside templates. It is created once and
+// shared because a cases.Caser is safe for concurrent use.
+var titleCaser = cases.Title(language.English)
 
-	code, err := generateTerraformProvider(components)
-
+// renderTemplate parses content as a text/template and executes it with data.
+// text/template (not html/template) is used because the rendered output is Go
+// source code, which must never be HTML-escaped.
+func renderTemplate(name, content string, data any) (string, error) {
+	tmpl, err := template.New(name).Funcs(template.FuncMap{
+		"title": titleCaser.String,
+	}).Parse(content)
 	if err != nil {
-		return
+		return "", fmt.Errorf("parsing %s template: %w", name, err)
 	}
 
-	file, err := os.Create(fmt.Sprintf("%s/provider.go", providerDirectory))
-	if err != nil {
-		fmt.Println("Error creating the file:", err)
-		return
-	}
-	defer file.Close()
-
-	_, err = file.WriteString(code)
-	if err != nil {
-		fmt.Println("Error writing to the file:", err)
-		return
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", fmt.Errorf("executing %s template: %w", name, err)
 	}
 
-	fmt.Printf("Content written to provider.go file successfully!\n")
+	return buf.String(), nil
 }
 
-func ReadAndGenerateDataSourcesAndResources(graphqlQuery string, providerDirectory string) (string, string, error) {
-
-	parsedQuery, err := parseGraphQLQuery(graphqlQuery)
-
+// writeGeneratedFile gofmt-formats Go source and writes it to path. If the
+// rendered source cannot be parsed by gofmt it is written unformatted, with a
+// warning, so the output is still available for inspection.
+func writeGeneratedFile(path, source string) error {
+	formatted, err := format.Source([]byte(source))
 	if err != nil {
-		fmt.Println("Error parsing GraphQL query:", err)
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "warning: could not gofmt %s, writing unformatted: %v\n", path, err)
+		formatted = []byte(source)
 	}
 
-	if parsedQuery.ResourceType == DataSource {
+	if err := os.WriteFile(path, formatted, 0o644); err != nil {
+		return fmt.Errorf("writing %s: %w", path, err)
+	}
+
+	return nil
+}
+
+// ReadAndGenerateProvider renders the Terraform provider entrypoint for the
+// given components and writes it to provider.go in providerDirectory.
+func ReadAndGenerateProvider(components TerraformComponents, providerDirectory string) error {
+	code, err := generateTerraformProvider(components)
+	if err != nil {
+		return err
+	}
+
+	return writeGeneratedFile(filepath.Join(providerDirectory, "provider.go"), code)
+}
+
+// ReadAndGenerateDataSourcesAndResources parses a single GraphQL query and
+// writes the matching Terraform data source or resource into providerDirectory.
+// It returns the generated data source name or resource name (exactly one is
+// non-empty on success) along with any error.
+func ReadAndGenerateDataSourcesAndResources(graphqlQuery, providerDirectory string) (dataSourceName, resourceName string, err error) {
+	parsedQuery, err := parseGraphQLQuery(graphqlQuery)
+	if err != nil {
+		return "", "", fmt.Errorf("parsing GraphQL query: %w", err)
+	}
+
+	switch parsedQuery.ResourceType {
+	case DataSource:
 		code, err := generateTerraformDataSource(parsedQuery)
 		if err != nil {
-			fmt.Println("Error generating Terraform data source:", err)
-			os.Exit(1)
+			return "", "", fmt.Errorf("generating data source: %w", err)
 		}
-		file, err := os.Create(fmt.Sprintf("%s/%s_data_source.go", providerDirectory, parsedQuery.QueryName))
-		if err != nil {
-			fmt.Println("Error creating the file:", err)
+		path := filepath.Join(providerDirectory, parsedQuery.QueryName+"_data_source.go")
+		if err := writeGeneratedFile(path, code); err != nil {
 			return "", "", err
 		}
-		defer file.Close()
-
-		_, err = file.WriteString(code)
-		if err != nil {
-			fmt.Println("Error writing to the file:", err)
-			return "", "", err
-		}
-
-		fmt.Printf("Content written to %s_data_source.go file successfully!\n", parsedQuery.QueryName)
 		return parsedQuery.QueryName, "", nil
-	} else if parsedQuery.ResourceType == Resource {
+	case Resource:
 		code, err := generateTerraformResource(parsedQuery)
 		if err != nil {
-			return "", "", fmt.Errorf("Error generating Terraform resource: %s", err)
+			return "", "", fmt.Errorf("generating resource: %w", err)
 		}
-		file, err := os.Create(fmt.Sprintf("%s/%s_resource.go", providerDirectory, parsedQuery.QueryName))
-		if err != nil {
-			return "", "", fmt.Errorf("Error creating the file: %s", err)
+		path := filepath.Join(providerDirectory, parsedQuery.QueryName+"_resource.go")
+		if err := writeGeneratedFile(path, code); err != nil {
+			return "", "", err
 		}
-		defer file.Close()
-
-		_, err = file.WriteString(code)
-		if err != nil {
-			return "", "", fmt.Errorf("Error writing to the file: %s", err)
-		}
-
-		fmt.Printf("Content written to %s_resource.go file successfully!\n", parsedQuery.QueryName)
 		return "", parsedQuery.QueryName, nil
+	default:
+		return "", "", fmt.Errorf("query %q is neither a resource nor a data source", parsedQuery.QueryName)
 	}
-
-	return "", "", fmt.Errorf("No Resource or DataSource")
-
 }
 
 func generateTerraformProvider(components TerraformComponents) (string, error) {
@@ -95,55 +106,24 @@ func generateTerraformProvider(components TerraformComponents) (string, error) {
 		Resources:   components.Resources,
 	}
 
-	// Render the template
-	caser := cases.Title(language.English)
-	providerTemplate, err := template.New("provider").Funcs(template.FuncMap{
-		"title": caser.String,
-	}).Parse(string(templates.ProviderTemplateContent))
-	if err != nil {
-		return "", err
-	}
-
-	var buf bytes.Buffer
-	err = providerTemplate.Execute(&buf, data)
-	if err != nil {
-		return "", err
-	}
-
-	return buf.String(), nil
+	return renderTemplate("provider", templates.ProviderTemplateContent, data)
 }
 
 func generateTerraformDataSource(parsedQuery *InputGraphQLQuery) (string, error) {
-	structName := parsedQuery.QueryName + "DataSource"
 	data := DataSourceTemplateData{
 		QueryName:       parsedQuery.QueryName,
 		ObjectName:      parsedQuery.ObjectName,
 		Required:        parsedQuery.Required,
-		StructName:      structName,
+		ReadOp:          parsedQuery.ReadOp,
+		StructName:      parsedQuery.QueryName + "DataSource",
 		Fields:          parsedQuery.Fields,
 		GenqlientFields: parsedQuery.GenqlientFields,
 	}
 
-	// Render the template
-	caser := cases.Title(language.English)
-	datasourceTemplate, err := template.New("datasource").Funcs(template.FuncMap{
-		"title": caser.String,
-	}).Parse(string(templates.DatasourceTemplateContent))
-	if err != nil {
-		return "", err
-	}
-
-	var buf bytes.Buffer
-	err = datasourceTemplate.Execute(&buf, data)
-	if err != nil {
-		return "", err
-	}
-
-	return buf.String(), nil
+	return renderTemplate("datasource", templates.DatasourceTemplateContent, data)
 }
 
 func generateTerraformResource(parsedQuery *InputGraphQLQuery) (string, error) {
-	structName := parsedQuery.QueryName + "Resource"
 	data := ResourceTemplateData{
 		QueryName:               parsedQuery.QueryName,
 		ObjectName:              parsedQuery.ObjectName,
@@ -152,54 +132,23 @@ func generateTerraformResource(parsedQuery *InputGraphQLQuery) (string, error) {
 		CreateOp:                parsedQuery.CreateOp,
 		UpsertOp:                parsedQuery.UpsertOp,
 		DeleteOp:                parsedQuery.DeleteOp,
-		StructName:              structName,
+		StructName:              parsedQuery.QueryName + "Resource",
 		Fields:                  parsedQuery.Fields,
 		GenqlientFields:         parsedQuery.GenqlientFields,
 		GenqlientFieldsModify:   parsedQuery.genqlientFieldsModify,
 		GenqlientFieldsReadOnly: parsedQuery.genqlientFieldsReadOnly,
 	}
 
-	// Render the template
-	caser := cases.Title(language.English)
-	resourceTemplate, err := template.New("resource").Funcs(template.FuncMap{
-		"title": caser.String,
-	}).Parse(string(templates.ResourceTemplateContent))
-	if err != nil {
-		return "", err
-	}
-
-	var buf bytes.Buffer
-	err = resourceTemplate.Execute(&buf, data)
-	if err != nil {
-		return "", err
-	}
-
-	return buf.String(), nil
+	return renderTemplate("resource", templates.ResourceTemplateContent, data)
 }
 
+// GenerateArtifactDatasource writes the static artifact data source, used to
+// fetch generated artifacts from Infrahub's storage API, into providerDirectory.
 func GenerateArtifactDatasource(providerDirectory string) error {
-	artifactTemplate, err := template.New("artifact").Parse(string(templates.ArtifactTemplateContent))
+	code, err := renderTemplate("artifact", templates.ArtifactTemplateContent, "")
 	if err != nil {
 		return err
 	}
 
-	var buf bytes.Buffer
-	err = artifactTemplate.Execute(&buf, "")
-	if err != nil {
-		return err
-	}
-
-	file, err := os.Create(fmt.Sprintf("%s/artifact_data_source.go", providerDirectory))
-	if err != nil {
-		return fmt.Errorf("Error creating the file: %s", err)
-	}
-	defer file.Close()
-
-	_, err = file.WriteString(buf.String())
-	if err != nil {
-		return fmt.Errorf("Error writing to the file: %s", err)
-	}
-
-	fmt.Printf("Content written to provider.go file successfully!\n")
-	return nil
+	return writeGeneratedFile(filepath.Join(providerDirectory, "artifact_data_source.go"), code)
 }

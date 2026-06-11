@@ -92,7 +92,7 @@ func (d *{{.QueryName }}DataSource) Read(ctx context.Context, req datasource.Rea
 	}
 
 	{{- if .Required }}
-	response, err := infrahub_sdk.{{.QueryName | title}}(ctx, *d.client, config.{{.Required | title }}.ValueString())
+	response, err := infrahub_sdk.{{.ReadOp}}(ctx, *d.client, config.{{.Required | title }}.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to read {{.QueryName}} from Infrahub",
@@ -116,7 +116,7 @@ func (d *{{.QueryName }}DataSource) Read(ctx context.Context, req datasource.Rea
 		{{- end }}
 	}
 	{{- else }}
-	response, err := infrahub_sdk.{{.QueryName | title}}(ctx, *d.client)
+	response, err := infrahub_sdk.{{.ReadOp}}(ctx, *d.client)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to read {{.QueryName}} from Infrahub",
@@ -125,7 +125,7 @@ func (d *{{.QueryName }}DataSource) Read(ctx context.Context, req datasource.Rea
 		return
 	}
 	var state {{.StructName}}
-	for i, _ := range response.{{.ObjectName}}.Edges {
+	for i := range response.{{.ObjectName}}.Edges {
 		current := {{.QueryName}}Model{
 			{{- range .GenqlientFields }}
 			{{ .Name | title }}: types.StringValue(response.{{ .Query }}),

@@ -292,7 +292,7 @@ func parseResourceInput(lines []string) (InputGraphQLQuery, error) {
 }
 
 func parseDataSourceInput(lines []string) (InputGraphQLQuery, error) {
-	var queryName, required, objectName, parentPrefix string
+	var queryName, required, objectName, parentPrefix, readOp string
 	var fields []Field
 	var genqlientFields []GenqlientField
 	var inBlock bool
@@ -309,6 +309,10 @@ func parseDataSourceInput(lines []string) (InputGraphQLQuery, error) {
 				} else {
 					queryName = parts[1]
 				}
+				// Keep the operation name as written so the generated code
+				// calls the matching genqlient function; genqlient names each
+				// function after the GraphQL operation, not the lowercased alias.
+				readOp = queryName
 				queryName = strings.ToLower(string(queryName[0])) + queryName[1:]
 			}
 		} else if number == 1 {
@@ -419,10 +423,17 @@ func parseDataSourceInput(lines []string) (InputGraphQLQuery, error) {
 
 	addHumanReadableField(genqlientFields)
 
+	// Fall back to the Infrahub naming convention when the operation name could
+	// not be read from the .gql.
+	if readOp == "" && queryName != "" {
+		readOp = strings.ToUpper(queryName[:1]) + queryName[1:]
+	}
+
 	return InputGraphQLQuery{
 		QueryName:       queryName,
 		ObjectName:      objectName,
 		Required:        required,
+		ReadOp:          readOp,
 		GenqlientFields: genqlientFields,
 	}, nil
 }
