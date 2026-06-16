@@ -23,7 +23,13 @@ var titleCaser = cases.Title(language.English)
 // source code, which must never be HTML-escaped.
 func renderTemplate(name, content string, data any) (string, error) {
 	tmpl, err := template.New(name).Funcs(template.FuncMap{
-		"title": titleCaser.String,
+		"title":         titleCaser.String,
+		"tfType":        tfType,
+		"tfAttr":        tfAttr,
+		"sdkCreate":     sdkCreate,
+		"sdkUpdate":     sdkUpdate,
+		"writeAccessor": writeAccessor,
+		"readCtor":      readCtor,
 	}).Parse(content)
 	if err != nil {
 		return "", fmt.Errorf("parsing %s template: %w", name, err)

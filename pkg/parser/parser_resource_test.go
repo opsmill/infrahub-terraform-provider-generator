@@ -3,6 +3,8 @@ package parser
 import (
 	"strings"
 	"testing"
+
+	"github.com/opsmill/infrahub-terraform-provider-generator/pkg/schema"
 )
 
 // sampleResourceGQL mirrors the documented resource layout: the mutation
@@ -208,5 +210,82 @@ func TestUpdateSkipsEmptyOptionalAttributes(t *testing.T) {
 		t.Errorf("update should guard empty optional attributes, missing %q:\n%s", want, code)
 	}
 
+	assertGofmt(t, code)
+}
+
+const sampleTypedResourceGQL = `mutation DctVCenterCreate($data: DctVCenterCreateInput!) {
+  DctVCenterCreate(data: $data) {
+    object {
+      id
+      vcenter_name { value }
+      total_vcpu { value }
+      is_active { value }
+    }
+  }
+}
+
+mutation DctVCenterUpsert($data: DctVCenterUpsertInput!) {
+  DctVCenterUpsert(data: $data) {
+    object {
+      id
+      vcenter_name { value }
+      total_vcpu { value }
+      is_active { value }
+    }
+  }
+}
+
+mutation DctVCenterDelete($id: String!) {
+  DctVCenterDelete(data: { id: $id }) {
+    ok
+  }
+}
+
+query DctVCenterByName($vcenter_name: String!) {
+  DctVCenter(vcenter_name__value: $vcenter_name) {
+    edges {
+      node {
+        id
+        total_vcpu { value }
+        is_active { value }
+      }
+    }
+  }
+}
+`
+
+func typedVCenterRegistry() *schema.Registry {
+	return schema.NewRegistry(map[string]map[string]schema.Attribute{
+		"DctVCenter": {
+			"vcenter_name": {Kind: "Text", Optional: false},
+			"total_vcpu":   {Kind: "Number", Optional: true},
+			"is_active":    {Kind: "Boolean", Optional: false},
+		},
+	})
+}
+
+func TestResourceSchemaUsesTypedAttributes(t *testing.T) {
+	parsed, err := parseGraphQLQuery(sampleTypedResourceGQL, typedVCenterRegistry())
+	if err != nil {
+		t.Fatalf("parseGraphQLQuery returned error: %v", err)
+	}
+	code, err := generateTerraformResource(parsed)
+	if err != nil {
+		t.Fatalf("generateTerraformResource returned error: %v", err)
+	}
+
+	mustContain := []string{
+		// Number -> Int64, optional -> Optional+Computed.
+		"\"total_vcpu\": schema.Int64Attribute{",
+		"Edges_node_total_vcpu types.Int64 `tfsdk:\"total_vcpu\"`",
+		// Boolean -> Bool, schema-required -> Required (no Computed/Optional).
+		"\"is_active\": schema.BoolAttribute{",
+		"Edges_node_is_active types.Bool `tfsdk:\"is_active\"`",
+	}
+	for _, want := range mustContain {
+		if !strings.Contains(code, want) {
+			t.Errorf("typed schema missing fragment:\n%s\n---\n%s", want, code)
+		}
+	}
 	assertGofmt(t, code)
 }

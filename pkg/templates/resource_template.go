@@ -32,7 +32,7 @@ type {{.QueryName }}Resource struct {
 	{{ .Required | title }} types.String ` + "`tfsdk:\"{{ .Required }}\"`" + `
 	{{- end }}
 	{{- range .GenqlientFields }}
-	{{ .Name | title }} types.String ` + "`tfsdk:\"{{ .HumanReadableName }}\"`" + `
+	{{ .Name | title }} {{ tfType . }} ` + "`tfsdk:\"{{ .HumanReadableName }}\"`" + `
 	{{- end }}
 }
 
@@ -56,9 +56,13 @@ func (r *{{.QueryName}}Resource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 			{{- end }}
 			{{- range .GenqlientFieldsModify }}
-			"{{ .HumanReadableName }}": schema.StringAttribute{
+			"{{ .HumanReadableName }}": {{ tfAttr . }}{
+				{{- if .Optional }}
 				Computed: true,
 				Optional: true,
+				{{- else }}
+				Required: true,
+				{{- end }}
 			},
 			{{- end }}
 		},
