@@ -1,0 +1,22 @@
+docs/superpowers/specs/2026-06-16-schema-driven-typing-design.md
+  s_08bca5df108f62::t_53741362060b49 136-141
+  s_08bca5df108f62::t_1b27063694786c 111-114
+  s_08bca5df108f62::t_0309c1dfed076e 47-67
+  s_08bca5df108f62::t_d5613c10dc560f 252-264,266-268
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "d989c51d8032de7944f8e8f48e8bdc55a7856804",
+  "prompts": {},
+  "sessions": {
+    "s_08bca5df108f62": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b3e60da6-205a-42d9-a035-3b86422f3e6f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Benoit Kohler <benoit+claude@opsmill.com>"
+    }
+  }
+}
