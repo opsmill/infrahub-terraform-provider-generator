@@ -50,6 +50,32 @@ go run github.com/opsmill/infrahub-terraform-provider-generator/cmd/generator \
 | `-gql-dir` | `gql` | Directory to scan for `.gql` query files |
 | `-provider-dir` | `internal/provider` | Directory to write the generated provider source into |
 | `-artifacts` | `false` | Also generate the artifact data source |
+| `-infrahub-address` | `$INFRAHUB_ADDRESS` | Infrahub base URL; with `-api-token`, attribute types are read from the live schema |
+| `-api-token` | `$INFRAHUB_API_TOKEN` | API token, sent as the `X-INFRAHUB-KEY` header |
+| `-branch` | `main` | Infrahub branch to read the schema from |
+
+### Attribute typing from the schema
+
+By default every attribute is generated as a Terraform `String`. When you pass
+`-infrahub-address` and `-api-token`, the generator reads the schema for the
+given `-branch` and types each attribute from its Infrahub kind:
+
+- `Number` → `types.Int64`
+- `Boolean` / `Checkbox` → `types.Bool`
+- everything else → `types.String`
+
+Attributes the schema marks required (`optional: false`) are generated as
+Terraform `Required` and always sent; optional attributes are sent only when
+set. Without these flags the generator stays fully offline and types every
+attribute as `String`, exactly as before.
+
+> **Numeric attributes require an SDK change.** The generated provider depends
+> on [`infrahub-sdk-go`](https://github.com/opsmill/infrahub-sdk-go), whose
+> `NumberAttribute` value is the GraphQL `BigInt` scalar. For integers to be
+> sent correctly, the SDK must bind `BigInt` to `int64` — add
+> `bindings: {BigInt: {type: int64}}` to its `pkg/genqlient.yaml` and
+> regenerate the SDK. Without that binding, `BigInt` defaults to a Go `string`
+> and numeric values cannot be represented as integers.
 
 ---
 
