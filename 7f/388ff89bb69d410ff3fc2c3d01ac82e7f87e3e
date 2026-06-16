@@ -1,0 +1,41 @@
+pkg/parser/parser.go
+  s_08bca5df108f62::t_d45ab7ec7f991a 7
+  s_08bca5df108f62::t_67a193aa5b7f28 58
+  s_08bca5df108f62::t_99d04f4c7570ba 27,44,47
+  s_08bca5df108f62::t_78c2890dcbbafc 247-256
+  s_08bca5df108f62::t_61edf264bfc361 309-310
+pkg/parser/parser_test.go
+  s_08bca5df108f62::t_849575145aab00 78
+  s_08bca5df108f62::t_1eebe6e8141ec9 135
+  s_08bca5df108f62::t_23a0dc715a7157 113
+  s_08bca5df108f62::t_1b167bd9383f8d 92
+  s_08bca5df108f62::t_65924a021e886f 49
+pkg/schema/registry.go
+  s_08bca5df108f62::t_5c3140ef32eae9 17-22
+pkg/parser/parser_resource_test.go
+  s_08bca5df108f62::t_9579f80ea4b329 54
+  s_08bca5df108f62::t_73dadf93f72da2 175
+  s_08bca5df108f62::t_025d045241ee9f 197
+  s_08bca5df108f62::t_b7bb5b89bf4918 147
+pkg/parser/parser_typing_test.go
+  s_08bca5df108f62::t_4c4a68e8c899e0 1-44
+pkg/parser/generators.go
+  s_08bca5df108f62::t_9e7902289973d6 72-73
+  s_08bca5df108f62::t_ed1f4cebc04765 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "7f388ff89bb69d410ff3fc2c3d01ac82e7f87e3e",
+  "prompts": {},
+  "sessions": {
+    "s_08bca5df108f62": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b3e60da6-205a-42d9-a035-3b86422f3e6f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Benoit Kohler <benoit+claude@opsmill.com>"
+    }
+  }
+}
