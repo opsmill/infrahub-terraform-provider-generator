@@ -229,16 +229,6 @@ func parseResourceInput(lines []string, reg *schema.Registry) (InputGraphQLQuery
 			PlainObject:            strings.Join(plain[2:], ".") + valueSuffix,
 		}
 
-		// Stamp schema-derived type info. objectName is the node kind
-		// (namespace+name); the attribute name is the field name without the
-		// edges_node_ prefix. A nil registry or a miss leaves Kind="" (String)
-		// and Optional=true, reproducing the untyped default.
-		newField.Optional = true
-		if attr, ok := reg.Attribute(objectName, humanReadableName(newField.Name)); ok {
-			newField.Kind = attr.Kind
-			newField.Optional = attr.Optional
-		}
-
 		// Only fields read through GetId() (the node's own server-assigned UUID,
 		// and any related node's id) are read-only; they carry no `.Value`
 		// suffix. Every other selected scalar ends in `.Value` and is a real
@@ -249,6 +239,17 @@ func parseResourceInput(lines []string, reg *schema.Registry) (InputGraphQLQuery
 		if valueSuffix == "" {
 			genqlientFieldsReadOnly = append(genqlientFieldsReadOnly, newField)
 		} else {
+			// Stamp schema-derived type info only on configurable fields; the
+			// read-only id is always a string UUID and must never be typed.
+			// objectName is the node kind (namespace+name); the attribute name
+			// is the field name without the edges_node_ prefix. A nil registry
+			// or a miss leaves Kind="" (String) and Optional=true, reproducing
+			// the untyped default.
+			newField.Optional = true
+			if attr, ok := reg.Attribute(objectName, humanReadableName(newField.Name)); ok {
+				newField.Kind = attr.Kind
+				newField.Optional = attr.Optional
+			}
 			genqlientFieldsModify = append(genqlientFieldsModify, newField)
 		}
 		genqlientFields = append(genqlientFields, newField)
