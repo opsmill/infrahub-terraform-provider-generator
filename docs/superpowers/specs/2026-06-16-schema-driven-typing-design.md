@@ -44,6 +44,27 @@ From `opsmill/infrahub-sdk-go` (private; genqlient-generated) and Infrahub docs:
   registry key. Attributes carry `name`, `kind`, `optional`. Auth header is
   `X-INFRAHUB-KEY`.
 
+### `/api/schema` shape (confirmed against the installed `infrahub_sdk`)
+
+Verified from the Python SDK bundled in the customer poc venv
+(`infrahub_sdk/schema/`), so no live instance was needed:
+
+- Read endpoint: `GET {address}/api/schema?branch={branch}` (an optional
+  repeated `namespaces=` param exists but we don't need it). Non-200 raises in
+  the SDK — we mirror that by erroring out.
+- Response envelope (`SchemaRootAPI`): `{"nodes": [...], "generics": [...]}`.
+- Each node (`NodeSchemaAPI`) has a `kind` (= namespace+name) and
+  `attributes: [AttributeSchemaAPI]`. Each attribute carries `name`,
+  `kind` (the `AttributeKind` enum), `optional: bool`, `read_only: bool`, and
+  **`inherited: bool`**.
+- **Inheritance is pre-resolved:** attributes inherited from generics are
+  **already inlined** into each node's `attributes` list (flagged
+  `inherited: true`). The decoder reads `nodes[].attributes[]` directly and does
+  **not** need to follow `inherit_from` / merge generics.
+- `AttributeKind` values: `ID, Text, String, TextArea, DateTime, Number,
+  NumberPool, Dropdown, Email, Password, HashedPassword, URL, File, MacAddress,
+  Color, Bandwidth, IPHost, IPNetwork, Boolean, Checkbox, List, JSON, Any`.
+
 ### Dependency: BigInt binding (decided)
 
 Real numeric values require `infrahub-sdk-go` to bind `BigInt` to a numeric Go
@@ -87,8 +108,10 @@ testable.
 Fetch(ctx, address, token, branch) (*Registry, error)
     GET {address}/api/schema?branch={branch}
     header X-INFRAHUB-KEY: {token}
-    decode nodes[] + generics[]
-    -> Registry
+    non-200 -> error
+    decode {nodes:[{kind, attributes:[{name, kind, optional}]}]}
+    -> Registry   (read nodes[].attributes[] directly; inherited attrs
+                   are already inlined, so generics need not be merged)
 
 type Attribute struct { Kind string; Optional bool }
 type Registry struct { /* map[nodeKind]map[attrName]Attribute */ }
@@ -109,6 +132,12 @@ helpers that consume it:
 | `Number`             | `Int64Attribute`   | `types.Int64`  | `NumberAttribute{C,U}`     | `.ValueInt64()`  | `types.Int64Value(int64(v))`      |
 | `Boolean`/`Checkbox` | `BoolAttribute`    | `types.Bool`   | `CheckboxAttribute{C,U}`   | `.ValueBool()`   | `types.BoolValue(v)`              |
 | else (incl. unknown) | `StringAttribute`  | `types.String` | `TextAttribute{C,U}`       | `.ValueString()` | `types.StringValue(v)`            |
+
+"else" covers `Text, String, TextArea, DateTime, Dropdown, Email, Password,
+HashedPassword, URL, File, MacAddress, Color, Bandwidth, IPHost, IPNetwork, Any`
+(all `String`-valued in the SDK). `NumberPool`, `JSON`, and `List` also fall
+into "else" (String) for now, each with a `stderr` warning since their real
+wrapper differs — see out-of-scope note.
 
 Helpers (registered in `generators.go`): `tfType`, `tfAttr`, `sdkCreate`,
 `sdkUpdate`, `writeAccessor`, `readCtor` — each takes a `GenqlientField` (or its
@@ -220,10 +249,20 @@ using `setDefault`) to Int64 and Bool, and removes `setDefault`.
   - nil-registry backward-compat → all String, matches current output.
   - all generated output gofmt-clean (existing `assertGofmt`).
 
-## Assumption to verify during planning
+## Resolved during design (was: assumptions to verify)
 
-The exact `/api/schema` response envelope (top-level key wrapping `nodes`/
-`generics`) and whether inherited (generic) attributes are inlined per node or
-must be resolved by following `inherit_from`. Confirm against the live instance
-before coding the decoder; the approach is unaffected, only the decode/struct
-shape.
+Both prior open items are now confirmed (see "`/api/schema` shape" above):
+
+- Response envelope is `{"nodes": [...], "generics": [...]}`; read endpoint is
+  `GET /api/schema?branch={branch}`.
+- Inherited generic attributes are **already inlined** per node (flagged
+  `inherited`), so the decoder reads `nodes[].attributes[]` directly and skips
+  `inherit_from` resolution.
+
+Nothing in the approach changes; the decoder struct shape is now pinned down.
+
+## Out of band (separate repo)
+
+`infrahub-sdk-go`'s `genqlient.yaml` must add `bindings: {BigInt: {type:
+int64}}` and be regenerated. This generator targets the post-binding SDK and
+must land together with it. Tracked here so it isn't lost.
