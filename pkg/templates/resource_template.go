@@ -85,7 +85,12 @@ func (r *{{.QueryName}}Resource) Create(ctx context.Context, req resource.Create
 	default{{$defaultCreate}}.{{ .Required | title }} = infrahub_sdk.TextAttributeCreate{Value: plan.{{ .Required | title }}.ValueString()}
 	{{- end }}
 	{{- range .GenqlientFieldsModify }}
-	default{{$defaultCreate}}.{{ .InputObjectNames }} = infrahub_sdk.TextAttributeCreate{Value: plan.{{ .Name | title }}.ValueString()}
+	// Only send attributes the user actually set; sending an unset optional
+	// attribute as an empty value makes Infrahub reject non-text kinds (e.g. a
+	// Number attribute fails with "Expected type 'BigInt'").
+	if !plan.{{ .Name | title }}.IsNull() {
+		default{{$defaultCreate}}.{{ .InputObjectNames }} = infrahub_sdk.TextAttributeCreate{Value: plan.{{ .Name | title }}.ValueString()}
+	}
 	{{- end }}
 
 	tflog.Info(ctx, fmt.Sprint("Creating {{ .QueryName | title }} ", plan.{{.Required | title }}))
@@ -184,7 +189,12 @@ func (r *{{.QueryName}}Resource) Update(ctx context.Context, req resource.Update
 	updateInput.{{ .Required | title }} = infrahub_sdk.TextAttributeUpdate{Value: plan.{{ .Required | title }}.ValueString()}
 	{{- end }}
 	{{- range .GenqlientFieldsModify }}
-	updateInput.{{ .InputObjectNames }} = infrahub_sdk.TextAttributeUpdate{Value: setDefault(plan.{{ .Name | title }}.ValueString(), state.{{ .Name | title }}.ValueString())}
+	// Carry forward the prior value when the plan omits it, but never send an
+	// empty value: Infrahub rejects it for non-text kinds (e.g. a Number
+	// attribute fails with "Expected type 'BigInt'").
+	if v := setDefault(plan.{{ .Name | title }}.ValueString(), state.{{ .Name | title }}.ValueString()); v != "" {
+		updateInput.{{ .InputObjectNames }} = infrahub_sdk.TextAttributeUpdate{Value: v}
+	}
 	{{- end }}
 	{{- $idElement :=  (index .GenqlientFieldsReadOnly 0).Name | title  }}
 	updateInput.Id = state.{{$idElement}}.ValueString()

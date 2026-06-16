@@ -244,12 +244,17 @@ func parseResourceInput(lines []string) (InputGraphQLQuery, error) {
 			PlainObject:            strings.Join(plain[2:], ".") + valueSuffix,
 		}
 
-		if strings.Count(strings.ToLower(newField.Query), "node") < 2 && strings.Count(strings.ToLower(newField.Query), "id") < 1 {
-			genqlientFieldsModify = append(genqlientFieldsModify, newField)
-		} else if strings.Count(strings.ToLower(newField.Query), "node") >= 2 && strings.Count(strings.ToLower(newField.Query), "id") >= 1 {
-			genqlientFieldsModify = append(genqlientFieldsModify, newField)
-		} else {
+		// Only fields read through GetId() (the node's own server-assigned UUID,
+		// and any related node's id) are read-only; they carry no `.Value`
+		// suffix. Every other selected scalar ends in `.Value` and is a real
+		// attribute the user can set, so it must be configurable. The earlier
+		// heuristic counted the substring "id" in the access path and wrongly
+		// forced any attribute whose name merely contained "id" (id_projet,
+		// vlan_id, …) to be read-only.
+		if valueSuffix == "" {
 			genqlientFieldsReadOnly = append(genqlientFieldsReadOnly, newField)
+		} else {
+			genqlientFieldsModify = append(genqlientFieldsModify, newField)
 		}
 		genqlientFields = append(genqlientFields, newField)
 	}
