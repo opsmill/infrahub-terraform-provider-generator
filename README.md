@@ -64,18 +64,30 @@ given `-branch` and types each attribute from its Infrahub kind:
 - `Boolean` / `Checkbox` → `types.Bool`
 - everything else → `types.String`
 
+The filter/key attribute is typed the same way; for a non-text key the `.gql`
+lookup query must declare a matching variable type (e.g. `$asn: BigInt!`).
 Attributes the schema marks required (`optional: false`) are generated as
 Terraform `Required` and always sent; optional attributes are sent only when
-set. Without these flags the generator stays fully offline and types every
-attribute as `String`, exactly as before.
+set. Data sources are typed too. Without these flags the generator stays fully
+offline and types every attribute as `String`, exactly as before.
 
-> **Numeric attributes require an SDK change.** The generated provider depends
-> on [`infrahub-sdk-go`](https://github.com/opsmill/infrahub-sdk-go), whose
-> `NumberAttribute` value is the GraphQL `BigInt` scalar. For integers to be
-> sent correctly, the SDK must bind `BigInt` to `int64` — add
-> `bindings: {BigInt: {type: int64}}` to its `pkg/genqlient.yaml` and
-> regenerate the SDK. Without that binding, `BigInt` defaults to a Go `string`
-> and numeric values cannot be represented as integers.
+> **The SDK's scalar bindings must match the generated types.** The generated
+> provider talks to Infrahub through a genqlient-built SDK. In the
+> [provider template](https://github.com/opsmill/infrahub-terraform-provider-template)
+> that SDK is built locally from `sdk/genqlient.yaml`, whose `bindings:` must
+> line up with the types this generator emits:
+>
+> - `BigInt: int64` — `Number` attributes use `ValueInt64()` / `types.Int64Value`
+> - `DateTime: string` — `DateTime` is rendered as `types.String` (the plugin
+>   framework has no DateTime type)
+>
+> The template ships these defaults as `string` / `time.Time`, which will not
+> compile against typed output. Update them and run `make generate_sdk`.
+>
+> Caveat: `BigInt: int64` assumes Infrahub serializes `BigInt` as a JSON number.
+> If it is sent as a JSON string, bind it to `int64` with a custom genqlient
+> marshaler/unmarshaler instead. Verify with a real `terraform apply` against a
+> live Infrahub.
 
 ---
 
