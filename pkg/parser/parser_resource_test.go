@@ -300,6 +300,87 @@ func TestResourceSchemaUsesTypedAttributes(t *testing.T) {
 	assertGofmt(t, code)
 }
 
+// sampleNumericKeyResourceGQL has a numeric filter key (asn) declared as BigInt
+// in the lookup query, with a separate text attribute selected in the node.
+const sampleNumericKeyResourceGQL = `mutation DctThingCreate($data: DctThingCreateInput!) {
+  DctThingCreate(data: $data) {
+    object {
+      id
+      label { value }
+    }
+  }
+}
+
+mutation DctThingUpsert($data: DctThingUpsertInput!) {
+  DctThingUpsert(data: $data) {
+    object {
+      id
+      label { value }
+    }
+  }
+}
+
+mutation DctThingDelete($id: String!) {
+  DctThingDelete(data: { id: $id }) {
+    ok
+  }
+}
+
+query DctThingByName($asn: BigInt!) {
+  DctThing(asn__value: $asn) {
+    edges {
+      node {
+        id
+        label { value }
+      }
+    }
+  }
+}
+`
+
+// TestRequiredKeyAttributeIsTyped verifies the filter/key attribute is typed
+// from the schema rather than always being a string. For a Number key the
+// struct field, schema attribute, create/update wrapper, and the lookup
+// accessor must all use the Int64 forms.
+func TestRequiredKeyAttributeIsTyped(t *testing.T) {
+	reg := schema.NewRegistry(map[string]map[string]schema.Attribute{
+		"DctThing": {
+			"asn":   {Kind: "Number", Optional: false},
+			"label": {Kind: "Text", Optional: true},
+		},
+	})
+
+	parsed, err := parseGraphQLQuery(sampleNumericKeyResourceGQL, reg)
+	if err != nil {
+		t.Fatalf("parseGraphQLQuery returned error: %v", err)
+	}
+	code, err := generateTerraformResource(parsed)
+	if err != nil {
+		t.Fatalf("generateTerraformResource returned error: %v", err)
+	}
+
+	mustContain := []string{
+		"Asn types.Int64 `tfsdk:\"asn\"`",
+		"\"asn\": schema.Int64Attribute{",
+		"infrahub_sdk.NumberAttributeCreate{Value: plan.Asn.ValueInt64()}",
+		"infrahub_sdk.NumberAttributeUpdate{Value: plan.Asn.ValueInt64()}",
+		// The lookup passes the key with its typed accessor (the .gql declares $asn: BigInt!).
+		"infrahub_sdk.DctThingByName(ctx, *r.client, state.Asn.ValueInt64())",
+	}
+	for _, want := range mustContain {
+		if !strings.Contains(code, want) {
+			t.Errorf("typed key attribute missing fragment:\n%s\n---\n%s", want, code)
+		}
+	}
+
+	// The key must not be sent as a text attribute.
+	if strings.Contains(code, "TextAttributeCreate{Value: plan.Asn.ValueString()}") {
+		t.Errorf("numeric key still sent as TextAttributeCreate:\n%s", code)
+	}
+
+	assertGofmt(t, code)
+}
+
 func TestResourceCreateUpdateReadAreTyped(t *testing.T) {
 	parsed, err := parseGraphQLQuery(sampleTypedResourceGQL, typedVCenterRegistry())
 	if err != nil {

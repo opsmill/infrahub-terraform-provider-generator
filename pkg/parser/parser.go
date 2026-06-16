@@ -282,6 +282,7 @@ func parseResourceInput(lines []string, reg *schema.Registry) (InputGraphQLQuery
 		QueryName:               queryName,
 		ObjectName:              objectName,
 		Required:                required,
+		RequiredField:           stampRequired(required, objectName, reg),
 		ReadOp:                  readOp,
 		CreateOp:                createOp,
 		UpsertOp:                upsertOp,
@@ -453,6 +454,7 @@ func parseDataSourceInput(lines []string, reg *schema.Registry) (InputGraphQLQue
 		QueryName:       queryName,
 		ObjectName:      objectName,
 		Required:        required,
+		RequiredField:   stampRequired(required, objectName, reg),
 		ReadOp:          readOp,
 		GenqlientFields: genqlientFields,
 	}, nil
@@ -463,6 +465,24 @@ func parseDataSourceInput(lines []string, reg *schema.Registry) (InputGraphQLQue
 // used to look the attribute up in the schema registry.
 func humanReadableName(fieldName string) string {
 	return strings.ReplaceAll(fieldName, "edges_node_", "")
+}
+
+// stampRequired builds the typed GenqlientField for the filter/key attribute.
+// The key carries no edges_node_ prefix, so its name is the attribute name
+// directly. A nil registry or a miss leaves Kind="" (String), preserving the
+// untyped default. The generated lookup passes this value to the SDK read
+// function, so the .gql must declare a matching query-variable type (e.g.
+// BigInt! for a Number key).
+func stampRequired(required, objectName string, reg *schema.Registry) GenqlientField {
+	f := GenqlientField{Field: Field{Name: required, HumanReadableName: required}, Optional: true}
+	if required == "" {
+		return f
+	}
+	if attr, ok := reg.Attribute(objectName, required); ok {
+		f.Kind = attr.Kind
+		f.Optional = attr.Optional
+	}
+	return f
 }
 
 func addHumanReadableField(fields []GenqlientField) {

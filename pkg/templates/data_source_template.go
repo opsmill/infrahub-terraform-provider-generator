@@ -29,7 +29,7 @@ func New{{.QueryName | title }}DataSource() datasource.DataSource {
 type {{.StructName}} struct {
 	client     *graphql.Client
 	{{- if .Required }}
-	{{.Required | title }} types.String ` + "`tfsdk:\"{{.Required}}\"`" + `
+	{{.Required | title }} {{ tfType .RequiredField }} ` + "`tfsdk:\"{{.Required}}\"`" + `
 	{{- range .GenqlientFields }}
 	{{ .Name | title }} {{ tfType . }} ` + "`tfsdk:\"{{ .HumanReadableName }}\"`" + `
 	{{- end }}
@@ -54,7 +54,7 @@ func (d *{{.QueryName}}DataSource) Schema(ctx context.Context, req datasource.Sc
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			{{- if .Required }}
-			"{{.Required}}": schema.StringAttribute{
+			"{{.Required}}": {{ tfAttr .RequiredField }}{
 				Required: true,
 			},
 			{{- range .GenqlientFields }}
@@ -92,7 +92,7 @@ func (d *{{.QueryName }}DataSource) Read(ctx context.Context, req datasource.Rea
 	}
 
 	{{- if .Required }}
-	response, err := infrahub_sdk.{{.ReadOp}}(ctx, *d.client, config.{{.Required | title }}.ValueString())
+	response, err := infrahub_sdk.{{.ReadOp}}(ctx, *d.client, config.{{.Required | title }}.{{ writeAccessor .RequiredField }})
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to read {{.QueryName}} from Infrahub",

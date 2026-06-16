@@ -29,7 +29,7 @@ func New{{.QueryName | title }}Resource() resource.Resource {
 type {{.QueryName }}Resource struct {
 	client         *graphql.Client
 	{{- if .Required }}
-	{{ .Required | title }} types.String ` + "`tfsdk:\"{{ .Required }}\"`" + `
+	{{ .Required | title }} {{ tfType .RequiredField }} ` + "`tfsdk:\"{{ .Required }}\"`" + `
 	{{- end }}
 	{{- range .GenqlientFields }}
 	{{ .Name | title }} {{ tfType . }} ` + "`tfsdk:\"{{ .HumanReadableName }}\"`" + `
@@ -46,7 +46,7 @@ func (r *{{.QueryName}}Resource) Schema(_ context.Context, _ resource.SchemaRequ
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			{{- if .Required }}
-			"{{ .Required }}": schema.StringAttribute{
+			"{{ .Required }}": {{ tfAttr .RequiredField }}{
 				Required: true,
 			},
 			{{- end }}
@@ -86,7 +86,7 @@ func (r *{{.QueryName}}Resource) Create(ctx context.Context, req resource.Create
 	// Assign each attribute, wrapping the value in the Infrahub input type.
 	{{- $defaultCreate :=  .QueryName | title  }}
 	{{- if .Required }}
-	default{{$defaultCreate}}.{{ .Required | title }} = infrahub_sdk.TextAttributeCreate{Value: plan.{{ .Required | title }}.ValueString()}
+	default{{$defaultCreate}}.{{ .Required | title }} = {{ sdkCreate .RequiredField }}{Value: plan.{{ .Required | title }}.{{ writeAccessor .RequiredField }}}
 	{{- end }}
 	{{- range .GenqlientFieldsModify }}
 	{{- if .Optional }}
@@ -142,7 +142,7 @@ func (r *{{.QueryName}}Resource) Read(ctx context.Context, req resource.ReadRequ
 	tflog.Info(ctx, fmt.Sprint("Reading {{ .QueryName | title }} ", state.{{ .Required | title }}))
 
 	// Call the API with the specified key attribute from the configuration
-	response, err := infrahub_sdk.{{ .ReadOp }}(ctx, *r.client, state.{{ .Required | title }}.ValueString())
+	response, err := infrahub_sdk.{{ .ReadOp }}(ctx, *r.client, state.{{ .Required | title }}.{{ writeAccessor .RequiredField }})
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to read {{ .QueryName }} from Infrahub",
@@ -194,7 +194,7 @@ func (r *{{.QueryName}}Resource) Update(ctx context.Context, req resource.Update
 
 	// Prepare the update input using values from the plan and applying defaults
 	{{- if .Required }}
-	updateInput.{{ .Required | title }} = infrahub_sdk.TextAttributeUpdate{Value: plan.{{ .Required | title }}.ValueString()}
+	updateInput.{{ .Required | title }} = {{ sdkUpdate .RequiredField }}{Value: plan.{{ .Required | title }}.{{ writeAccessor .RequiredField }}}
 	{{- end }}
 	{{- range .GenqlientFieldsModify }}
 	{{- if .Optional }}
@@ -215,7 +215,7 @@ func (r *{{.QueryName}}Resource) Update(ctx context.Context, req resource.Update
 
 
 	// Log the update operation
-	tflog.Info(ctx, fmt.Sprintf("Updating {{ .QueryName | title }} %s", state.{{ .Required | title }}.ValueString()))
+	tflog.Info(ctx, fmt.Sprintf("Updating {{ .QueryName | title }} %v", state.{{ .Required | title }}))
 
 	// Send the update request to the API
 	response, err := infrahub_sdk.{{ .UpsertOp }}(ctx, *r.client, updateInput)
