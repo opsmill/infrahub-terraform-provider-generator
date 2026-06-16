@@ -70,7 +70,10 @@ func TestGenerateTerraformResource(t *testing.T) {
 		// Bug 2: inputs must be wrapped in the Infrahub input types, not raw strings.
 		"infrahub_sdk.TextAttributeCreate{Value: plan.Vcenter_name.ValueString()}",
 		"infrahub_sdk.TextAttributeCreate{Value: plan.Edges_node_fqdn.ValueString()}",
-		"setDefault(plan.Edges_node_fqdn.ValueString(), state.Edges_node_fqdn.ValueString())",
+		// Update carries the prior value forward via plan/state guards (no setDefault).
+		"infrahub_sdk.TextAttributeUpdate{Value: plan.Edges_node_fqdn.ValueString()}",
+		"} else if !state.Edges_node_fqdn.IsNull() {",
+		"infrahub_sdk.TextAttributeUpdate{Value: state.Edges_node_fqdn.ValueString()}",
 		// Bug 3: mutation responses must read the nested .Value.
 		"response.DctVCenterCreate.Object.Fqdn.Value",
 		"response.DctVCenterUpsert.Object.Version.Value",
@@ -206,8 +209,15 @@ func TestUpdateSkipsEmptyOptionalAttributes(t *testing.T) {
 		t.Fatalf("generateTerraformResource returned error: %v", err)
 	}
 
-	if want := "if v := setDefault(plan.Edges_node_fqdn.ValueString(), state.Edges_node_fqdn.ValueString()); v != \"\""; !strings.Contains(code, want) {
-		t.Errorf("update should guard empty optional attributes, missing %q:\n%s", want, code)
+	// The plan value is sent only if set; otherwise the prior state value is
+	// sent only if set; if neither is set, nothing is sent (empty never goes out).
+	for _, want := range []string{
+		"if !plan.Edges_node_fqdn.IsNull() {",
+		"} else if !state.Edges_node_fqdn.IsNull() {",
+	} {
+		if !strings.Contains(code, want) {
+			t.Errorf("update should guard empty optional attributes, missing %q:\n%s", want, code)
+		}
 	}
 
 	assertGofmt(t, code)
@@ -287,5 +297,46 @@ func TestResourceSchemaUsesTypedAttributes(t *testing.T) {
 			t.Errorf("typed schema missing fragment:\n%s\n---\n%s", want, code)
 		}
 	}
+	assertGofmt(t, code)
+}
+
+func TestResourceCreateUpdateReadAreTyped(t *testing.T) {
+	parsed, err := parseGraphQLQuery(sampleTypedResourceGQL, typedVCenterRegistry())
+	if err != nil {
+		t.Fatalf("parseGraphQLQuery returned error: %v", err)
+	}
+	code, err := generateTerraformResource(parsed)
+	if err != nil {
+		t.Fatalf("generateTerraformResource returned error: %v", err)
+	}
+
+	mustContain := []string{
+		// Number optional: guarded create with the Int64 accessor + Number wrapper.
+		"if !plan.Edges_node_total_vcpu.IsNull() {",
+		"infrahub_sdk.NumberAttributeCreate{Value: plan.Edges_node_total_vcpu.ValueInt64()}",
+		// Boolean required: always sent with the Bool accessor + Checkbox wrapper.
+		"infrahub_sdk.CheckboxAttributeCreate{Value: plan.Edges_node_is_active.ValueBool()}",
+		// Update: typed wrappers; optional Number carries forward via plan/state.
+		"infrahub_sdk.NumberAttributeUpdate{Value: plan.Edges_node_total_vcpu.ValueInt64()}",
+		"} else if !state.Edges_node_total_vcpu.IsNull() {",
+		"infrahub_sdk.NumberAttributeUpdate{Value: state.Edges_node_total_vcpu.ValueInt64()}",
+		// Read: typed constructors back into framework values.
+		"state.Edges_node_total_vcpu = types.Int64Value(response.",
+		"state.Edges_node_is_active = types.BoolValue(response.",
+		// Create and Upsert response write-backs are typed too.
+		"plan.Edges_node_total_vcpu = types.Int64Value(response.DctVCenterCreate.Object.",
+		"plan.Edges_node_total_vcpu = types.Int64Value(response.DctVCenterUpsert.Object.",
+	}
+	for _, want := range mustContain {
+		if !strings.Contains(code, want) {
+			t.Errorf("typed create/update/read missing fragment:\n%s\n---\n%s", want, code)
+		}
+	}
+
+	// setDefault is gone; no field should reference it.
+	if strings.Contains(code, "setDefault(") {
+		t.Errorf("generated code still references the removed setDefault helper:\n%s", code)
+	}
+
 	assertGofmt(t, code)
 }

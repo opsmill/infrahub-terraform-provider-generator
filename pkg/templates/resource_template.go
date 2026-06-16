@@ -89,12 +89,16 @@ func (r *{{.QueryName}}Resource) Create(ctx context.Context, req resource.Create
 	default{{$defaultCreate}}.{{ .Required | title }} = infrahub_sdk.TextAttributeCreate{Value: plan.{{ .Required | title }}.ValueString()}
 	{{- end }}
 	{{- range .GenqlientFieldsModify }}
+	{{- if .Optional }}
 	// Only send attributes the user actually set; sending an unset optional
 	// attribute as an empty value makes Infrahub reject non-text kinds (e.g. a
 	// Number attribute fails with "Expected type 'BigInt'").
 	if !plan.{{ .Name | title }}.IsNull() {
-		default{{$defaultCreate}}.{{ .InputObjectNames }} = infrahub_sdk.TextAttributeCreate{Value: plan.{{ .Name | title }}.ValueString()}
+		default{{$defaultCreate}}.{{ .InputObjectNames }} = {{ sdkCreate . }}{Value: plan.{{ .Name | title }}.{{ writeAccessor . }}}
 	}
+	{{- else }}
+	default{{$defaultCreate}}.{{ .InputObjectNames }} = {{ sdkCreate . }}{Value: plan.{{ .Name | title }}.{{ writeAccessor . }}}
+	{{- end }}
 	{{- end }}
 
 	tflog.Info(ctx, fmt.Sprint("Creating {{ .QueryName | title }} ", plan.{{.Required | title }}))
@@ -110,7 +114,7 @@ func (r *{{.QueryName}}Resource) Create(ctx context.Context, req resource.Create
 
 	{{- $defaultCreateObject :=  .ObjectName }}
 	{{- range .GenqlientFields }}
-	plan.{{ .Name | title }} = types.StringValue(response.{{ $defaultCreateObject }}Create.Object.{{ .PlainObject }})
+	plan.{{ .Name | title }} = {{ readCtor . }}(response.{{ $defaultCreateObject }}Create.Object.{{ .PlainObject }})
 	{{- end }}
 
 
@@ -158,7 +162,7 @@ func (r *{{.QueryName}}Resource) Read(ctx context.Context, req resource.ReadRequ
 
 	{{- $defaultObject :=  .ObjectName }}
 	{{- range .GenqlientFields }}
-	state.{{ .Name | title }} = types.StringValue(response.{{ .Query }})
+	state.{{ .Name | title }} = {{ readCtor . }}(response.{{ .Query }})
 	{{- end }}
 
 	diags = resp.State.Set(ctx, &state)
@@ -193,12 +197,18 @@ func (r *{{.QueryName}}Resource) Update(ctx context.Context, req resource.Update
 	updateInput.{{ .Required | title }} = infrahub_sdk.TextAttributeUpdate{Value: plan.{{ .Required | title }}.ValueString()}
 	{{- end }}
 	{{- range .GenqlientFieldsModify }}
+	{{- if .Optional }}
 	// Carry forward the prior value when the plan omits it, but never send an
 	// empty value: Infrahub rejects it for non-text kinds (e.g. a Number
 	// attribute fails with "Expected type 'BigInt'").
-	if v := setDefault(plan.{{ .Name | title }}.ValueString(), state.{{ .Name | title }}.ValueString()); v != "" {
-		updateInput.{{ .InputObjectNames }} = infrahub_sdk.TextAttributeUpdate{Value: v}
+	if !plan.{{ .Name | title }}.IsNull() {
+		updateInput.{{ .InputObjectNames }} = {{ sdkUpdate . }}{Value: plan.{{ .Name | title }}.{{ writeAccessor . }}}
+	} else if !state.{{ .Name | title }}.IsNull() {
+		updateInput.{{ .InputObjectNames }} = {{ sdkUpdate . }}{Value: state.{{ .Name | title }}.{{ writeAccessor . }}}
 	}
+	{{- else }}
+	updateInput.{{ .InputObjectNames }} = {{ sdkUpdate . }}{Value: plan.{{ .Name | title }}.{{ writeAccessor . }}}
+	{{- end }}
 	{{- end }}
 	{{- $idElement :=  (index .GenqlientFieldsReadOnly 0).Name | title  }}
 	updateInput.Id = state.{{$idElement}}.ValueString()
@@ -219,7 +229,7 @@ func (r *{{.QueryName}}Resource) Update(ctx context.Context, req resource.Update
 
 	{{- $defaultUpsertObject :=  .ObjectName }}
 	{{- range .GenqlientFields }}
-	plan.{{ .Name | title }} = types.StringValue(response.{{ $defaultUpsertObject }}Upsert.Object.{{ .PlainObject }})
+	plan.{{ .Name | title }} = {{ readCtor . }}(response.{{ $defaultUpsertObject }}Upsert.Object.{{ .PlainObject }})
 	{{- end }}
 
 	// Set the updated state with the latest data

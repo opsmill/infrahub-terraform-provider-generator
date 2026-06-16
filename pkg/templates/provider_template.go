@@ -209,12 +209,4 @@ func (a *AuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req.Header.Add("X-INFRAHUB-KEY", a.Token)
 	return a.Transport.RoundTrip(req)
 }
-
-// Helper function to set a string value with a default if empty.
-func setDefault(value, defaultValue string) string {
-	if value == "" {
-		return defaultValue
-	}
-	return value
-}
 `
