@@ -51,7 +51,7 @@ query DctVCenterByName($vcenter_name: String!) {
 `
 
 func TestGenerateTerraformResource(t *testing.T) {
-	parsed, err := parseGraphQLQuery(sampleResourceGQL)
+	parsed, err := parseGraphQLQuery(sampleResourceGQL, nil)
 	if err != nil {
 		t.Fatalf("parseGraphQLQuery returned error: %v", err)
 	}
@@ -144,7 +144,7 @@ query DctProjectByName($nom: String!) {
 // any attribute whose name contained "id" (id_projet, vlan_id, …) was forced
 // read-only (Computed) and could not be set on create.
 func TestResourceIDLikeAttributeIsConfigurable(t *testing.T) {
-	parsed, err := parseGraphQLQuery(sampleResourceWithIDAttrGQL)
+	parsed, err := parseGraphQLQuery(sampleResourceWithIDAttrGQL, nil)
 	if err != nil {
 		t.Fatalf("parseGraphQLQuery returned error: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestResourceIDLikeAttributeIsConfigurable(t *testing.T) {
 // attributes being sent to Infrahub as empty values, which the API rejects for
 // non-text kinds (e.g. a Number attribute fails with "Expected type 'BigInt'").
 func TestCreateSkipsUnsetOptionalAttributes(t *testing.T) {
-	parsed, err := parseGraphQLQuery(sampleResourceGQL)
+	parsed, err := parseGraphQLQuery(sampleResourceGQL, nil)
 	if err != nil {
 		t.Fatalf("parseGraphQLQuery returned error: %v", err)
 	}
@@ -194,7 +194,7 @@ func TestCreateSkipsUnsetOptionalAttributes(t *testing.T) {
 // rejection on the upsert path: an optional attribute that is set in neither
 // the plan nor the prior state must not be sent at all.
 func TestUpdateSkipsEmptyOptionalAttributes(t *testing.T) {
-	parsed, err := parseGraphQLQuery(sampleResourceGQL)
+	parsed, err := parseGraphQLQuery(sampleResourceGQL, nil)
 	if err != nil {
 		t.Fatalf("parseGraphQLQuery returned error: %v", err)
 	}

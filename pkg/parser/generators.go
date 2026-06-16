@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"text/template"
 
+	"github.com/opsmill/infrahub-terraform-provider-generator/pkg/schema"
 	"github.com/opsmill/infrahub-terraform-provider-generator/pkg/templates"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -68,8 +69,8 @@ func ReadAndGenerateProvider(components TerraformComponents, providerDirectory s
 // writes the matching Terraform data source or resource into providerDirectory.
 // It returns the generated data source name or resource name (exactly one is
 // non-empty on success) along with any error.
-func ReadAndGenerateDataSourcesAndResources(graphqlQuery, providerDirectory string) (dataSourceName, resourceName string, err error) {
-	parsedQuery, err := parseGraphQLQuery(graphqlQuery)
+func ReadAndGenerateDataSourcesAndResources(graphqlQuery, providerDirectory string, reg *schema.Registry) (dataSourceName, resourceName string, err error) {
+	parsedQuery, err := parseGraphQLQuery(graphqlQuery, reg)
 	if err != nil {
 		return "", "", fmt.Errorf("parsing GraphQL query: %w", err)
 	}

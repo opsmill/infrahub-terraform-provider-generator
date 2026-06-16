@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/opsmill/infrahub-terraform-provider-generator/pkg/schema"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -23,7 +24,7 @@ func graphQLToTerraformTypes(graphqlType string) string {
 	}
 }
 
-func parseGraphQLQuery(query string) (*InputGraphQLQuery, error) {
+func parseGraphQLQuery(query string, reg *schema.Registry) (*InputGraphQLQuery, error) {
 	var resourceType ResourceType
 	var result InputGraphQLQuery
 	var err error
@@ -40,11 +41,10 @@ func parseGraphQLQuery(query string) (*InputGraphQLQuery, error) {
 	}
 
 	if resourceType == DataSource {
-		result, err = parseDataSourceInput(lines)
+		result, err = parseDataSourceInput(lines, reg)
 		result.ResourceType = DataSource
-
 	} else if resourceType == Resource {
-		result, err = parseResourceInput(lines)
+		result, err = parseResourceInput(lines, reg)
 		result.ResourceType = Resource
 	}
 
@@ -55,7 +55,7 @@ func parseGraphQLQuery(query string) (*InputGraphQLQuery, error) {
 	return &result, nil
 }
 
-func parseResourceInput(lines []string) (InputGraphQLQuery, error) {
+func parseResourceInput(lines []string, reg *schema.Registry) (InputGraphQLQuery, error) {
 	var queryName, required, objectName, parentPrefix string
 	var inBlock bool
 	var prefixList, prefixListImmutable []string
@@ -244,6 +244,16 @@ func parseResourceInput(lines []string) (InputGraphQLQuery, error) {
 			PlainObject:            strings.Join(plain[2:], ".") + valueSuffix,
 		}
 
+		// Stamp schema-derived type info. objectName is the node kind
+		// (namespace+name); the attribute name is the field name without the
+		// edges_node_ prefix. A nil registry or a miss leaves Kind="" (String)
+		// and Optional=true, reproducing the untyped default.
+		newField.Optional = true
+		if attr, ok := reg.Attribute(objectName, strings.ReplaceAll(newField.Name, "edges_node_", "")); ok {
+			newField.Kind = attr.Kind
+			newField.Optional = attr.Optional
+		}
+
 		// Only fields read through GetId() (the node's own server-assigned UUID,
 		// and any related node's id) are read-only; they carry no `.Value`
 		// suffix. Every other selected scalar ends in `.Value` and is a real
@@ -296,7 +306,8 @@ func parseResourceInput(lines []string) (InputGraphQLQuery, error) {
 	}, nil
 }
 
-func parseDataSourceInput(lines []string) (InputGraphQLQuery, error) {
+func parseDataSourceInput(lines []string, reg *schema.Registry) (InputGraphQLQuery, error) {
+	_ = reg
 	var queryName, required, objectName, parentPrefix, readOp string
 	var fields []Field
 	var genqlientFields []GenqlientField

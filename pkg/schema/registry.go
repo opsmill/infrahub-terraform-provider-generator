@@ -14,6 +14,12 @@ type Registry struct {
 	nodes map[string]map[string]Attribute
 }
 
+// NewRegistry builds a Registry directly from a node→attr→Attribute map. It is
+// used by tests and any caller that already has schema data in hand.
+func NewRegistry(nodes map[string]map[string]Attribute) *Registry {
+	return &Registry{nodes: nodes}
+}
+
 // Attribute returns the schema info for an attribute, or ok=false when the node
 // or attribute is unknown. A nil *Registry always returns ok=false, so callers
 // can stay branch-free when no schema was fetched.

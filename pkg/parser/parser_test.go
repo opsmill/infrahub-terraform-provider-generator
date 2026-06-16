@@ -46,7 +46,7 @@ func assertGofmt(t *testing.T, code string) {
 }
 
 func TestGenerateTerraformDataSource(t *testing.T) {
-	parsed, err := parseGraphQLQuery(sampleDataSourceGQL)
+	parsed, err := parseGraphQLQuery(sampleDataSourceGQL, nil)
 	if err != nil {
 		t.Fatalf("parseGraphQLQuery returned error: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestGenerateTerraformDataSource(t *testing.T) {
 }
 
 func TestGenerateTerraformResourceIsGofmtClean(t *testing.T) {
-	parsed, err := parseGraphQLQuery(sampleResourceGQL)
+	parsed, err := parseGraphQLQuery(sampleResourceGQL, nil)
 	if err != nil {
 		t.Fatalf("parseGraphQLQuery returned error: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestGenerateTerraformResourceIsGofmtClean(t *testing.T) {
 }
 
 func TestListDataSourceRangesByIndex(t *testing.T) {
-	parsed, err := parseGraphQLQuery(sampleListDataSourceGQL)
+	parsed, err := parseGraphQLQuery(sampleListDataSourceGQL, nil)
 	if err != nil {
 		t.Fatalf("parseGraphQLQuery returned error: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestListDataSourceRangesByIndex(t *testing.T) {
 func TestReadAndGenerateWritesResource(t *testing.T) {
 	dir := t.TempDir()
 
-	dataSourceName, resourceName, err := ReadAndGenerateDataSourcesAndResources(sampleResourceGQL, dir)
+	dataSourceName, resourceName, err := ReadAndGenerateDataSourcesAndResources(sampleResourceGQL, dir, nil)
 	if err != nil {
 		t.Fatalf("ReadAndGenerateDataSourcesAndResources returned error: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestReadAndGenerateWritesResource(t *testing.T) {
 // the previous behaviour, where a parse failure called os.Exit(1) and killed
 // the caller's process instead of returning an error.
 func TestReadAndGenerateReturnsErrorOnInvalidQuery(t *testing.T) {
-	_, _, err := ReadAndGenerateDataSourcesAndResources("this is not a valid graphql document", t.TempDir())
+	_, _, err := ReadAndGenerateDataSourcesAndResources("this is not a valid graphql document", t.TempDir(), nil)
 	if err == nil {
 		t.Fatal("expected an error for an unparseable query, got nil")
 	}
