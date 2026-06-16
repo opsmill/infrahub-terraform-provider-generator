@@ -45,6 +45,8 @@ type GenqlientField struct {
 	QueryNoPrefixReplaceId string
 	InputObjectNames       string
 	PlainObject            string
+	Kind                   string // Infrahub AttributeKind; "" means untyped (String).
+	Optional               bool   // true unless the schema marks the attribute required.
 }
 
 // DataSourceTemplateData is the data passed to the data source template.
