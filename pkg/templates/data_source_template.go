@@ -31,7 +31,7 @@ type {{.StructName}} struct {
 	{{- if .Required }}
 	{{.Required | title }} types.String ` + "`tfsdk:\"{{.Required}}\"`" + `
 	{{- range .GenqlientFields }}
-	{{ .Name | title }} types.String ` + "`tfsdk:\"{{ .HumanReadableName }}\"`" + `
+	{{ .Name | title }} {{ tfType . }} ` + "`tfsdk:\"{{ .HumanReadableName }}\"`" + `
 	{{- end }}
 	{{- else }}
 	{{ .QueryName | title }} []{{ .QueryName }}Model ` + "`tfsdk:\"{{ .QueryName }}\"`" + `
@@ -41,7 +41,7 @@ type {{.StructName}} struct {
 {{- if not .Required }}
 type {{ .QueryName}}Model struct {
 	{{- range .GenqlientFields }}
-	{{ .Name | title }} types.String ` + "`tfsdk:\"{{ .HumanReadableName }}\"`" + `
+	{{ .Name | title }} {{ tfType . }} ` + "`tfsdk:\"{{ .HumanReadableName }}\"`" + `
 	{{- end }}
 }
 {{- end }}
@@ -58,7 +58,7 @@ func (d *{{.QueryName}}DataSource) Schema(ctx context.Context, req datasource.Sc
 				Required: true,
 			},
 			{{- range .GenqlientFields }}
-			"{{ .HumanReadableName }}": schema.StringAttribute{
+			"{{ .HumanReadableName }}": {{ tfAttr . }}{
 				Computed: true,
 			},
 			{{- end }}
@@ -68,7 +68,7 @@ func (d *{{.QueryName}}DataSource) Schema(ctx context.Context, req datasource.Sc
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						{{- range .GenqlientFields }}
-						"{{ .HumanReadableName }}": schema.StringAttribute{
+						"{{ .HumanReadableName }}": {{ tfAttr . }}{
 							Computed: true,
 						},
 						{{- end }}
@@ -112,7 +112,7 @@ func (d *{{.QueryName }}DataSource) Read(ctx context.Context, req datasource.Rea
 	state := {{.StructName}}{
 		{{.Required | title}}: config.{{.Required | title }},
 		{{- range .GenqlientFields }}
-		{{ .Name | title }}: types.StringValue(response.{{ .Query }}),
+		{{ .Name | title }}: {{ readCtor . }}(response.{{ .Query }}),
 		{{- end }}
 	}
 	{{- else }}
@@ -128,7 +128,7 @@ func (d *{{.QueryName }}DataSource) Read(ctx context.Context, req datasource.Rea
 	for i := range response.{{.ObjectName}}.Edges {
 		current := {{.QueryName}}Model{
 			{{- range .GenqlientFields }}
-			{{ .Name | title }}: types.StringValue(response.{{ .Query }}),
+			{{ .Name | title }}: {{ readCtor . }}(response.{{ .Query }}),
 			{{- end }}
 		}
 		state.{{.QueryName | title }} = append(state.{{.QueryName| title }}, current)

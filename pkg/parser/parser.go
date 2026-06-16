@@ -26,7 +26,7 @@ func parseGraphQLQuery(query string, reg *schema.Registry) (*InputGraphQLQuery, 
 	}
 
 	if resourceType == DataSource {
-		result, err = parseDataSourceInput(lines)
+		result, err = parseDataSourceInput(lines, reg)
 		result.ResourceType = DataSource
 	} else if resourceType == Resource {
 		result, err = parseResourceInput(lines, reg)
@@ -292,10 +292,9 @@ func parseResourceInput(lines []string, reg *schema.Registry) (InputGraphQLQuery
 	}, nil
 }
 
-// parseDataSourceInput parses a read query into a data source. Data source
-// fields are read-only and rendered as strings, so it takes no schema registry;
-// add one here if typed data-source reads are ever needed.
-func parseDataSourceInput(lines []string) (InputGraphQLQuery, error) {
+// parseDataSourceInput parses a read query into a data source, stamping each
+// field's Kind/Optional from the schema registry so reads are type-correct.
+func parseDataSourceInput(lines []string, reg *schema.Registry) (InputGraphQLQuery, error) {
 	var queryName, required, objectName, parentPrefix, readOp string
 	var fields []Field
 	var genqlientFields []GenqlientField
@@ -411,14 +410,31 @@ func parseDataSourceInput(lines []string) (InputGraphQLQuery, error) {
 			}
 		}
 
-		// Join the parts using a dot separator
-		genqlientFields = append(genqlientFields, GenqlientField{
+		// Scalar attributes are selected as `attr { value }`, so genqlient nests
+		// the value under a `.Value` field. The node's own id is a plain string
+		// field read directly, with no `.Value` suffix.
+		valueSuffix := ".Value"
+		if len(parts) > 0 && parts[len(parts)-1] == "Id" {
+			valueSuffix = ""
+		}
+
+		newField := GenqlientField{
 			Field: Field{
 				Name: entry.Name,
 				Type: entry.Type,
 			},
-			Query: objectName + "." + strings.Join(parts, "."),
-		})
+			Query: objectName + "." + strings.Join(parts, ".") + valueSuffix,
+		}
+
+		// Stamp schema-derived type info so the data source reads the value into
+		// the right Terraform type. A nil registry or a miss (e.g. the id, which
+		// is not a schema attribute) leaves Kind="" (String).
+		newField.Optional = true
+		if attr, ok := reg.Attribute(objectName, humanReadableName(newField.Name)); ok {
+			newField.Kind = attr.Kind
+			newField.Optional = attr.Optional
+		}
+		genqlientFields = append(genqlientFields, newField)
 	}
 
 	if queryName == "" {

@@ -88,6 +88,54 @@ func TestGenerateTerraformResourceIsGofmtClean(t *testing.T) {
 	assertGofmt(t, code)
 }
 
+// sampleTypedDataSourceGQL is a single-result lookup that selects a Number and
+// a Boolean attribute, used to verify schema-driven typing of data sources.
+const sampleTypedDataSourceGQL = `query DctVCenterByName($vcenter_name: String!) {
+  DctVCenter(vcenter_name__value: $vcenter_name) {
+    edges {
+      node {
+        id
+        total_vcpu { value }
+        is_active { value }
+      }
+    }
+  }
+}
+`
+
+func TestDataSourceUsesTypedAttributes(t *testing.T) {
+	parsed, err := parseGraphQLQuery(sampleTypedDataSourceGQL, typedVCenterRegistry())
+	if err != nil {
+		t.Fatalf("parseGraphQLQuery returned error: %v", err)
+	}
+
+	code, err := generateTerraformDataSource(parsed)
+	if err != nil {
+		t.Fatalf("generateTerraformDataSource returned error: %v", err)
+	}
+
+	mustContain := []string{
+		// Scalar reads include .Value (fixes the pre-existing missing-.Value bug
+		// where the data source read a TextAttribute struct as if it were a string).
+		"types.Int64Value(response.DctVCenter.Edges[0].Node.Total_vcpu.Value)",
+		"types.BoolValue(response.DctVCenter.Edges[0].Node.Is_active.Value)",
+		// Number -> Int64, Boolean -> Bool in struct + schema.
+		"Edges_node_total_vcpu types.Int64 `tfsdk:\"total_vcpu\"`",
+		"\"total_vcpu\": schema.Int64Attribute{",
+		"Edges_node_is_active types.Bool `tfsdk:\"is_active\"`",
+		"\"is_active\": schema.BoolAttribute{",
+		// The node's own id stays a string and is read without .Value.
+		"types.StringValue(response.DctVCenter.Edges[0].Node.Id)",
+	}
+	for _, want := range mustContain {
+		if !strings.Contains(code, want) {
+			t.Errorf("typed data source missing fragment:\n%s\n---\n%s", want, code)
+		}
+	}
+
+	assertGofmt(t, code)
+}
+
 func TestListDataSourceRangesByIndex(t *testing.T) {
 	parsed, err := parseGraphQLQuery(sampleListDataSourceGQL, nil)
 	if err != nil {
