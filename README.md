@@ -84,10 +84,11 @@ offline and types every attribute as `String`, exactly as before.
 > The template ships these defaults as `string` / `time.Time`, which will not
 > compile against typed output. Update them and run `make generate_sdk`.
 >
-> Caveat: `BigInt: int64` assumes Infrahub serializes `BigInt` as a JSON number.
-> If it is sent as a JSON string, bind it to `int64` with a custom genqlient
-> marshaler/unmarshaler instead. Verify with a real `terraform apply` against a
-> live Infrahub.
+> No custom marshaler is needed: Infrahub's `BigInt` is graphene's built-in
+> scalar (`serialize = coerce_int`), so it is sent and received as a JSON
+> number, which genqlient maps cleanly to `int64`; `DateTime` is an ISO-8601
+> string. (`int64` covers values up to ~9.2×10¹⁸, matching Terraform's
+> `types.Int64`.)
 
 ---
 
