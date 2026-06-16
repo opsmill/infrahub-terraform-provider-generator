@@ -9,21 +9,6 @@ import (
 	"golang.org/x/text/language"
 )
 
-func graphQLToTerraformTypes(graphqlType string) string {
-	switch graphqlType {
-	case "String":
-		return "types.String"
-	case "Int":
-		return "types.Int64"
-	case "Float":
-		return "types.Float64"
-	case "Boolean":
-		return "types.Bool"
-	default:
-		return "types.String"
-	}
-}
-
 func parseGraphQLQuery(query string, reg *schema.Registry) (*InputGraphQLQuery, error) {
 	var resourceType ResourceType
 	var result InputGraphQLQuery
@@ -41,7 +26,7 @@ func parseGraphQLQuery(query string, reg *schema.Registry) (*InputGraphQLQuery, 
 	}
 
 	if resourceType == DataSource {
-		result, err = parseDataSourceInput(lines, reg)
+		result, err = parseDataSourceInput(lines)
 		result.ResourceType = DataSource
 	} else if resourceType == Resource {
 		result, err = parseResourceInput(lines, reg)
@@ -249,7 +234,7 @@ func parseResourceInput(lines []string, reg *schema.Registry) (InputGraphQLQuery
 		// edges_node_ prefix. A nil registry or a miss leaves Kind="" (String)
 		// and Optional=true, reproducing the untyped default.
 		newField.Optional = true
-		if attr, ok := reg.Attribute(objectName, strings.ReplaceAll(newField.Name, "edges_node_", "")); ok {
+		if attr, ok := reg.Attribute(objectName, humanReadableName(newField.Name)); ok {
 			newField.Kind = attr.Kind
 			newField.Optional = attr.Optional
 		}
@@ -306,8 +291,10 @@ func parseResourceInput(lines []string, reg *schema.Registry) (InputGraphQLQuery
 	}, nil
 }
 
-func parseDataSourceInput(lines []string, reg *schema.Registry) (InputGraphQLQuery, error) {
-	_ = reg
+// parseDataSourceInput parses a read query into a data source. Data source
+// fields are read-only and rendered as strings, so it takes no schema registry;
+// add one here if typed data-source reads are ever needed.
+func parseDataSourceInput(lines []string) (InputGraphQLQuery, error) {
 	var queryName, required, objectName, parentPrefix, readOp string
 	var fields []Field
 	var genqlientFields []GenqlientField
@@ -454,9 +441,16 @@ func parseDataSourceInput(lines []string, reg *schema.Registry) (InputGraphQLQue
 	}, nil
 }
 
+// humanReadableName is the attribute name as exposed in Terraform: the parsed
+// field name with the GraphQL edges_node_ prefix removed. It is also the key
+// used to look the attribute up in the schema registry.
+func humanReadableName(fieldName string) string {
+	return strings.ReplaceAll(fieldName, "edges_node_", "")
+}
+
 func addHumanReadableField(fields []GenqlientField) {
 
 	for i, field := range fields {
-		fields[i].HumanReadableName = strings.ReplaceAll(field.Name, "edges_node_", "")
+		fields[i].HumanReadableName = humanReadableName(field.Name)
 	}
 }
