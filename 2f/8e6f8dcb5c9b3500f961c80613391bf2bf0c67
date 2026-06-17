@@ -1,0 +1,19 @@
+pkg/schema/fetch.go
+  s_ed54a00333765a::t_1fdecc603dc693 20-23,27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "2f8e6f8dcb5c9b3500f961c80613391bf2bf0c67",
+  "prompts": {},
+  "sessions": {
+    "s_ed54a00333765a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c9dec00-da33-4fd1-97e5-e70f09c148ec",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Benoit Kohler <benoit+claude@opsmill.com>"
+    }
+  }
+}
