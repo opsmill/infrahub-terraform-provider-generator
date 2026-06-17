@@ -1,0 +1,54 @@
+.github/labeler.yml
+  s_33582454805a52::t_1ac6a030ae8646 1-22
+.github/workflows/ci.yml
+  s_33582454805a52::t_a479eebad579b8 22-23
+  s_33582454805a52::t_1105d4bf289838 1-21,25-67
+  s_33582454805a52::t_16645e1dd4bfda 94-127
+  s_33582454805a52::t_b8647e7f7cdc28 68-93
+  s_33582454805a52::t_aa9d4fa5245007 24
+go.mod
+  s_33582454805a52::t_b0f105aac02a22 3
+.markdownlint.yaml
+  s_33582454805a52::t_5f09beb658e0d6 1-27
+.yamllint.yml
+  s_33582454805a52::t_5ee5f47d9805b3 1-4,8-37
+  s_33582454805a52::t_1b217d91b64c0d 5-7
+.github/CODEOWNERS
+  s_33582454805a52::t_c030155ef3bd5c 1-2
+.gitignore
+  s_33582454805a52::t_528ff69c2615a9 1-18
+LICENSE
+  s_33582454805a52::t_4442b47e54019c 1-201
+AGENTS.md
+  s_33582454805a52::t_0596991c3bf4ae 1-42
+.github/labels.yml
+  s_33582454805a52::t_770a4053e14701 1-51
+.golangci.yaml
+  s_33582454805a52::t_5c2119ae56babb 1-4
+.github/dependabot.yml
+  s_33582454805a52::t_0067986b9541e8 1-26
+  s_33582454805a52::t_471552e574806d 27-38
+Makefile
+  s_33582454805a52::t_ad3e385d11346e 1-42
+.github/file-filters.yml
+  s_33582454805a52::t_96803bb9dd09c1 19-31
+  s_33582454805a52::t_6a8a9b74449816 3
+  s_33582454805a52::t_9553d744d24682 10-18
+  s_33582454805a52::t_78bc96e57f4562 1-2,4-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "c0cb3d315fad5e8baaeb47ab4a4a48e840360198",
+  "prompts": {},
+  "sessions": {
+    "s_33582454805a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "61c2da70-70db-4bad-88cb-72bf29ac0f3b",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Benoit Kohler <benoit+claude@opsmill.com>"
+    }
+  }
+}
