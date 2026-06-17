@@ -50,22 +50,25 @@ func TestMultiLineScalarSelectionParses(t *testing.T) {
 	}
 }
 
-// TestFilterVariableExtraction guards the C2 fix: the key variable must be read
-// by scanning identifier characters after `$`, so layouts the old nested-index
-// slicing panicked on (no space before `{`, variable ending the line) parse
-// cleanly.
+// TestFilterVariableExtraction locks key-variable extraction: the first
+// filter/key variable in the object selector becomes Required, regardless of
+// argument layout (the GraphQL grammar handles whitespace).
 func TestFilterVariableExtraction(t *testing.T) {
 	cases := map[string]string{
-		"DctX(name__value: $name) {":             "name",
-		"DctX(name__value: $name){":              "name", // no space before brace
-		"DctX(name__value: $name)":               "name", // variable ends the line
-		"DctX(asn__value: $asn, b__value: $b) {": "asn",  // first filter wins
+		`query Q($name: String!) {
+  DctX(name__value: $name) { edges { node { id } } }
+}`: "name",
+		`query Q($asn: BigInt!, $b: String!) {
+  DctX(asn__value: $asn, b__value: $b) { edges { node { id } } }
+}`: "asn", // first filter wins
 	}
-	for line, want := range cases {
-		// collectFields strips the trailing `{` before calling parseObjectLine.
-		objLine := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(line), "{"))
-		if _, got := parseObjectLine(objLine); got != want {
-			t.Errorf("parseObjectLine(%q) key = %q, want %q", line, got, want)
+	for gql, want := range cases {
+		parsed, err := parseGraphQLQuery(gql, nil)
+		if err != nil {
+			t.Fatalf("parseGraphQLQuery(%q): %v", gql, err)
+		}
+		if parsed.Required != want {
+			t.Errorf("Required = %q, want %q", parsed.Required, want)
 		}
 	}
 }
