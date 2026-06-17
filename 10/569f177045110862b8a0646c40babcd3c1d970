@@ -1,0 +1,76 @@
+.vale/styles/Infrahub/oxford-comma.yml
+  s_33582454805a52::t_02afd3c8579136 1-8
+docs/docs/tutorials/getting-started.mdx
+  s_33582454805a52::t_88eaf4f1cadf69 1-52
+docs/static/img/infrahub-hori-dark.svg
+  s_33582454805a52::t_02afd3c8579136 1-34
+docs/docs/guides/schema-typing.mdx
+  s_33582454805a52::t_b269629dd6bd01 1-53
+.vale/styles/Infrahub/branded-terms-case-swap.yml
+  s_33582454805a52::t_02afd3c8579136 1-37
+docs/sidebars.ts
+  s_33582454805a52::t_036501cdfb107a 1-33
+docs/src/css/custom.css
+  s_33582454805a52::t_3613ac7ab96103 1-146
+docs/.gitignore
+  s_33582454805a52::t_1e3dad14a384ec 1-20
+docs/package.json
+  s_33582454805a52::t_219901fc8a8dfd 1-43
+.vale/styles/Infrahub/swap.yml
+  s_33582454805a52::t_02afd3c8579136 1-10
+.vale.ini
+  s_33582454805a52::t_b2e4c41e0f47a3 1-15
+.vale/styles/Infrahub/simple-easy.yml
+  s_33582454805a52::t_02afd3c8579136 1-9
+.vale/styles/Infrahub/sentence-case.yml
+  s_33582454805a52::t_02afd3c8579136 1-280
+docs/docs/readme.mdx
+  s_33582454805a52::t_164300355be098 14
+  s_33582454805a52::t_e7b96698e7ce72 1-13,15-42
+.vale/styles/spelling-exceptions.txt
+  s_33582454805a52::t_51e45d592fa6fd 275
+  s_33582454805a52::t_4720c2208f82e2 297
+  s_33582454805a52::t_87662bc3a3c1a2 107
+  s_33582454805a52::t_1bbc23e625247c 8
+  s_33582454805a52::t_46dc40bac9caa6 117
+  s_33582454805a52::t_02afd3c8579136 1-7,9-106,108-116,118-274,276-296,298-349
+.vale/styles/Infrahub/eg-ie.yml
+  s_33582454805a52::t_02afd3c8579136 1-12
+docs/docs/reference/cli.mdx
+  s_33582454805a52::t_947c26fe40abe1 1-45
+docs/docs/reference/architecture.mdx
+  s_33582454805a52::t_89ed71cc4c5f22 1-39
+.vale/styles/Infrahub/colon-space.yml
+  s_33582454805a52::t_02afd3c8579136 1-8
+docs/babel.config.js
+  s_33582454805a52::t_f9be9cce912277 1-3
+docs/static/img/infrahub-hori.svg
+  s_33582454805a52::t_02afd3c8579136 1-30
+docs/docusaurus.config.ts
+  s_33582454805a52::t_82f20d5b8bbd71 1-19,25-82
+  s_33582454805a52::t_0174a622f5ad1e 20-24
+docs/docs/guides/sdk-bindings.mdx
+  s_33582454805a52::t_7731094f3fe53b 1-38
+docs/tsconfig.json
+  s_33582454805a52::t_4a24e6e1cd52a2 1-7
+.vale/styles/Infrahub/spelling.yml
+  s_33582454805a52::t_02afd3c8579136 1-9
+docs/docs/guides/graphql-file-layout.mdx
+  s_33582454805a52::t_15d3aff00b0fc3 1-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "10569f177045110862b8a0646c40babcd3c1d970",
+  "prompts": {},
+  "sessions": {
+    "s_33582454805a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "61c2da70-70db-4bad-88cb-72bf29ac0f3b",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Benoit Kohler <benoit+claude@opsmill.com>"
+    }
+  }
+}
