@@ -153,3 +153,64 @@ func TestParseDoesNotPanicOnMalformedInput(t *testing.T) {
 		}()
 	}
 }
+
+// TestCommentWithBracesParses guards FR-003: `#` comments anywhere — including
+// ones containing braces, which mis-counted in the old brace-walk — are ignored.
+func TestCommentWithBracesParses(t *testing.T) {
+	const gql = `query DctVCenterByName($vcenter_name: String!) {
+  # the next block selects a single { value } scalar
+  DctVCenter(vcenter_name__value: $vcenter_name) {
+    edges { node { id fqdn { value } } }  # fqdn { value } is one attribute
+  }
+}`
+	parsed, err := parseGraphQLQuery(gql, nil)
+	if err != nil {
+		t.Fatalf("parseGraphQLQuery returned error: %v", err)
+	}
+	if _, ok := fieldByHuman(parsed.GenqlientFields, "fqdn"); !ok {
+		t.Errorf("expected an fqdn field, got %+v", parsed.GenqlientFields)
+	}
+}
+
+// TestNamedFragmentMatchesInline guards FR-004/SC-002: a query using a named
+// fragment spread on the same type generates byte-identical source to the
+// equivalent inlined query.
+func TestNamedFragmentMatchesInline(t *testing.T) {
+	const withFragment = `query DctVCenterByName($vcenter_name: String!) {
+  DctVCenter(vcenter_name__value: $vcenter_name) {
+    edges { node { ...NodeFields } }
+  }
+}
+
+fragment NodeFields on DctVCenterNode {
+  id
+  fqdn { value }
+}`
+	const inline = `query DctVCenterByName($vcenter_name: String!) {
+  DctVCenter(vcenter_name__value: $vcenter_name) {
+    edges { node { id fqdn { value } } }
+  }
+}`
+
+	fragCode, err := generateTerraformDataSource(parseOrFatal(t, withFragment))
+	if err != nil {
+		t.Fatalf("generate (fragment form): %v", err)
+	}
+	inlineCode, err := generateTerraformDataSource(parseOrFatal(t, inline))
+	if err != nil {
+		t.Fatalf("generate (inline form): %v", err)
+	}
+	if fragCode != inlineCode {
+		t.Errorf("named-fragment query generated different source than the inline equivalent:\n--- fragment ---\n%s\n--- inline ---\n%s", fragCode, inlineCode)
+	}
+}
+
+// parseOrFatal parses a query into the IR, failing the test on error.
+func parseOrFatal(t *testing.T, gql string) *InputGraphQLQuery {
+	t.Helper()
+	parsed, err := parseGraphQLQuery(gql, nil)
+	if err != nil {
+		t.Fatalf("parseGraphQLQuery: %v", err)
+	}
+	return parsed
+}
