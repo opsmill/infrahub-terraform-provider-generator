@@ -108,6 +108,12 @@ func collectFields(doc *ast.QueryDocument) (objectName, required string, varType
 	if !ok {
 		return "", "", varTypes, nil, fmt.Errorf("parsing GraphQL query %q: expected an object selection, got %T", op.Name, op.SelectionSet[0])
 	}
+	if len(op.Directives) > 0 {
+		return "", "", varTypes, nil, fmt.Errorf("parsing GraphQL query %q: operation directive @%s is unsupported; remove it", op.Name, op.Directives[0].Name)
+	}
+	if len(objField.Directives) > 0 {
+		return "", "", varTypes, nil, fmt.Errorf("parsing GraphQL query %q: directive @%s on %q is unsupported; remove it", op.Name, objField.Directives[0].Name, objField.Name)
+	}
 	objectName = objField.Name
 	required = keyVariable(objField)
 
@@ -131,6 +137,9 @@ func walkSelection(set ast.SelectionSet, stack []string, doc *ast.QueryDocument)
 		case *ast.Field:
 			if s.Alias != "" && s.Alias != s.Name {
 				return nil, fmt.Errorf("parsing GraphQL query: alias %q on field %q is unsupported; remove the alias", s.Alias, s.Name)
+			}
+			if len(s.Directives) > 0 {
+				return nil, fmt.Errorf("parsing GraphQL query: directive @%s on field %q is unsupported; remove it", s.Directives[0].Name, s.Name)
 			}
 			if len(s.SelectionSet) == 0 || isScalarSelection(s.SelectionSet, doc) {
 				out = append(out, fieldPath{parts: appendPart(stack, s.Name)})

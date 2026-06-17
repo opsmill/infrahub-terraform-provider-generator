@@ -49,3 +49,33 @@ func TestUndefinedFragmentRejected(t *testing.T) {
 		t.Errorf("error %q should explain the fragment is not defined", err)
 	}
 }
+
+// TestFieldDirectiveRejected guards FR-006: a directive on a field (e.g.
+// @skip/@include) would silently drop or alter the selection, so it must be
+// rejected rather than mis-generated.
+func TestFieldDirectiveRejected(t *testing.T) {
+	const gql = `query Q($name: String!) {
+  DctX(name__value: $name) { edges { node { id fqdn @include(if: true) { value } } } }
+}`
+	_, err := parseGraphQLQuery(gql, nil)
+	if err == nil {
+		t.Fatal("expected an error for a field directive, got nil")
+	}
+	if !strings.Contains(err.Error(), "directive") {
+		t.Errorf("error %q should mention the unsupported directive", err)
+	}
+}
+
+// TestOperationDirectiveRejected guards FR-006 at the operation level.
+func TestOperationDirectiveRejected(t *testing.T) {
+	const gql = `query Q($name: String!) @someDirective {
+  DctX(name__value: $name) { edges { node { id } } }
+}`
+	_, err := parseGraphQLQuery(gql, nil)
+	if err == nil {
+		t.Fatal("expected an error for an operation directive, got nil")
+	}
+	if !strings.Contains(err.Error(), "directive") {
+		t.Errorf("error %q should mention the unsupported directive", err)
+	}
+}
