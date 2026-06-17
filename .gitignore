@@ -3,7 +3,7 @@ internal/provider/
 
 # Build artifacts
 bin/
-generator
+/generator
 
 # Test and coverage output
 coverage.out
