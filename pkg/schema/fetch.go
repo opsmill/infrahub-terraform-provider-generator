@@ -13,7 +13,20 @@ import (
 
 // httpClient bounds every schema fetch with a timeout so a hung or half-open
 // Infrahub cannot stall generation, independent of the caller's context.
-var httpClient = &http.Client{Timeout: 30 * time.Second}
+//
+// CheckRedirect drops the X-INFRAHUB-KEY header when a redirect crosses to a
+// different host: Go's client only strips Authorization/Cookie/WWW-Authenticate
+// on a cross-host redirect, not arbitrary custom headers, so without this a 30x
+// to another host would re-send the API token to that host.
+var httpClient = &http.Client{
+	Timeout: 30 * time.Second,
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if len(via) > 0 && req.URL.Host != via[0].URL.Host {
+			req.Header.Del("X-INFRAHUB-KEY")
+		}
+		return nil
+	},
+}
 
 // apiSchema mirrors the subset of the /api/schema response we consume. The
 // endpoint inlines inherited (generic) attributes into each node's attributes

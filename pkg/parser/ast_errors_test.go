@@ -79,3 +79,23 @@ func TestOperationDirectiveRejected(t *testing.T) {
 		t.Errorf("error %q should mention the unsupported directive", err)
 	}
 }
+
+// TestCyclicFragmentRejected guards against unbounded recursion: a cyclic
+// fragment spread is syntactically valid (parser.ParseQuery accepts it) but
+// would send the selection walk into a stack overflow, so it must be rejected
+// with a clear error instead.
+func TestCyclicFragmentRejected(t *testing.T) {
+	const gql = `query Q($name: String!) {
+  DctX(name__value: $name) { edges { node { id ...A } } }
+}
+
+fragment A on DctXNode { ...B }
+fragment B on DctXNode { id ...A }`
+	_, err := parseGraphQLQuery(gql, nil)
+	if err == nil {
+		t.Fatal("expected an error for a cyclic fragment, got nil")
+	}
+	if !strings.Contains(err.Error(), "cycle") {
+		t.Errorf("error %q should mention the fragment cycle", err)
+	}
+}

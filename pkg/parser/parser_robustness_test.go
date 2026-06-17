@@ -214,3 +214,49 @@ func parseOrFatal(t *testing.T, gql string) *InputGraphQLQuery {
 	}
 	return parsed
 }
+
+// TestResourceWithoutKeyReturnsError guards that a resource whose read query has
+// no key/filter variable is rejected: the resource templates dereference the key
+// field unconditionally, so an empty key would otherwise generate non-compiling
+// Go. (An unfiltered list is valid for a data source, but not for a resource,
+// which must read its object back by key.)
+func TestResourceWithoutKeyReturnsError(t *testing.T) {
+	const gql = `mutation DctXCreate($data: DctXCreateInput!) {
+  DctXCreate(data: $data) { object { id name { value } } }
+}
+
+mutation DctXUpsert($data: DctXUpsertInput!) {
+  DctXUpsert(data: $data) { object { id name { value } } }
+}
+
+mutation DctXDelete($id: String!) {
+  DctXDelete(data: { id: $id }) { ok }
+}
+
+query DctXAll {
+  DctX { edges { node { id name { value } } } }
+}`
+	_, err := parseGraphQLQuery(gql, nil)
+	if err == nil {
+		t.Fatal("expected an error for a resource whose read query has no key filter, got nil")
+	}
+	if !strings.Contains(err.Error(), "key variable") {
+		t.Errorf("error %q should explain the resource needs a key filter", err)
+	}
+}
+
+// TestHumanReadableNameStripsOnlyLeadingPrefix locks the prefix-strip to the
+// leading edges_node_ only: a deeply nested relationship path keeps its inner
+// frames so distinct paths do not collapse to the same attribute name.
+func TestHumanReadableNameStripsOnlyLeadingPrefix(t *testing.T) {
+	cases := map[string]string{
+		"edges_node_fqdn":                 "fqdn",
+		"id":                              "id",
+		"edges_node_site_edges_node_name": "site_edges_node_name",
+	}
+	for in, want := range cases {
+		if got := humanReadableName(in); got != want {
+			t.Errorf("humanReadableName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

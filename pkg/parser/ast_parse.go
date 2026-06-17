@@ -117,6 +117,14 @@ func collectFields(doc *ast.QueryDocument) (objectName, required string, varType
 	objectName = objField.Name
 	required = keyVariable(objField)
 
+	// parser.ParseQuery only validates syntax; the gqlparser validator that
+	// enforces NoFragmentCycles needs a schema and is never run offline. Reject
+	// cyclic fragment spreads up front so the recursive walk below cannot recurse
+	// without bound and crash the process with a stack overflow.
+	if cErr := checkFragmentCycles(doc); cErr != nil {
+		return "", "", varTypes, nil, cErr
+	}
+
 	fields, err = walkSelection(objField.SelectionSet, nil, doc)
 	if err != nil {
 		return "", "", varTypes, nil, err
@@ -196,4 +204,64 @@ func appendPart(stack []string, name string) []string {
 	copy(parts, stack)
 	parts[len(stack)] = name
 	return parts
+}
+
+// checkFragmentCycles reports an error if the document's fragment spreads form a
+// cycle (including a fragment that spreads itself). It walks the fragment
+// dependency graph with a three-state DFS: a fragment currently on the stack
+// that is reached again is a cycle. Undefined spreads are ignored here; they are
+// reported with a clearer message at the selection walk.
+func checkFragmentCycles(doc *ast.QueryDocument) error {
+	const (
+		onStack = 1
+		done    = 2
+	)
+	state := make(map[string]int, len(doc.Fragments))
+
+	var visit func(name string) error
+	visit = func(name string) error {
+		switch state[name] {
+		case onStack:
+			return fmt.Errorf("parsing GraphQL query: fragment %q forms a cycle; fragment spreads must not be recursive", name)
+		case done:
+			return nil
+		}
+		frag := doc.Fragments.ForName(name)
+		if frag == nil {
+			return nil
+		}
+		state[name] = onStack
+		for _, dep := range fragmentSpreadNames(frag.SelectionSet) {
+			if err := visit(dep); err != nil {
+				return err
+			}
+		}
+		state[name] = done
+		return nil
+	}
+
+	for _, frag := range doc.Fragments {
+		if err := visit(frag.Name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// fragmentSpreadNames returns the names of every fragment spread directly within
+// set, descending through nested fields and inline fragments but NOT following
+// the spreads themselves (that traversal belongs to the caller's cycle walk).
+func fragmentSpreadNames(set ast.SelectionSet) []string {
+	var names []string
+	for _, sel := range set {
+		switch s := sel.(type) {
+		case *ast.Field:
+			names = append(names, fragmentSpreadNames(s.SelectionSet)...)
+		case *ast.InlineFragment:
+			names = append(names, fragmentSpreadNames(s.SelectionSet)...)
+		case *ast.FragmentSpread:
+			names = append(names, s.Name)
+		}
+	}
+	return names
 }

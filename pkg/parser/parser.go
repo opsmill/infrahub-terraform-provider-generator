@@ -90,6 +90,9 @@ func parseResourceInput(doc *ast.QueryDocument, reg *schema.Registry) (InputGrap
 	if idFieldName == "" {
 		return InputGraphQLQuery{}, fmt.Errorf("parsing GraphQL query %q: a resource must select the node's own id", queryName)
 	}
+	if required == "" {
+		return InputGraphQLQuery{}, fmt.Errorf("parsing GraphQL query %q: a resource's read query must filter by a key variable (e.g. name__value: $name) so the object can be read back", queryName)
+	}
 
 	createOp, upsertOp, deleteOp := operationNames(doc)
 	// Fall back to the Infrahub <Kind><Op> convention when an operation name
@@ -102,9 +105,6 @@ func parseResourceInput(doc *ast.QueryDocument, reg *schema.Registry) (InputGrap
 	}
 	if deleteOp == "" {
 		deleteOp = objectName + "Delete"
-	}
-	if readOp == "" {
-		readOp = ucFirst(queryName)
 	}
 
 	return InputGraphQLQuery{
@@ -146,10 +146,6 @@ func parseDataSourceInput(doc *ast.QueryDocument, reg *schema.Registry) (InputGr
 			field.Optional = attr.Optional
 		}
 		genqlientFields = append(genqlientFields, field)
-	}
-
-	if readOp == "" {
-		readOp = ucFirst(queryName)
 	}
 
 	return InputGraphQLQuery{
@@ -242,7 +238,7 @@ func gqlTypeToKind(gqlType string) string {
 // field name with the GraphQL edges_node_ prefix removed. It is also the key
 // used to look the attribute up in the schema registry.
 func humanReadableName(fieldName string) string {
-	return strings.ReplaceAll(fieldName, "edges_node_", "")
+	return strings.TrimPrefix(fieldName, "edges_node_")
 }
 
 // stampRequired builds the typed GenqlientField for the filter/key attribute.
@@ -275,12 +271,4 @@ func lcFirst(s string) string {
 		return s
 	}
 	return strings.ToLower(s[:1]) + s[1:]
-}
-
-// ucFirst upper-cases the first rune of s.
-func ucFirst(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
 }
