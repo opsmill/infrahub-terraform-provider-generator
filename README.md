@@ -54,22 +54,19 @@ go run github.com/opsmill/infrahub-terraform-provider-generator/cmd/generator \
 | `-api-token` | `$INFRAHUB_API_TOKEN` | API token, sent as the `X-INFRAHUB-KEY` header |
 | `-branch` | `main` | Infrahub branch to read the schema from |
 
-### GraphQL file layout
+### Query structure
 
-The parser is line-oriented: each selected field must sit on its own line, and a
-relationship block opens with `<name> {` on its own line. A scalar attribute may
-be selected on a single line (`fqdn { value }`) or across lines:
-
-```graphql
-fqdn {
-  value
-}
-```
+The generator derives the access paths into the generated SDK from each query's
+shape, so the selection follows Infrahub's conventions: objects are read through
+the `edges` / `node` nesting, and a scalar attribute is selected as a `{ value }`
+sub-selection (`fqdn { value }`). Formatting itself is free — see
+[GraphQL input support](#graphql-input-support) below.
 
 A resource document is one create, one upsert and one delete mutation followed
 by a single-result read query, and its read query **must select the node's own
-`id`**. Inline single-line documents (the whole query on one line) are not
-supported.
+`id`** (the generator reads the object back through it after a create or update).
+A document that leads with a mutation becomes a resource; one that leads with a
+query becomes a data source.
 
 ### Attribute typing from the schema
 

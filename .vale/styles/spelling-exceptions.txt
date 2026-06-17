@@ -112,6 +112,7 @@ get_devices
 get_interfaces
 github
 gitlab
+gqlparser
 Grafana
 graphene
 graphene's
@@ -323,6 +324,7 @@ UUIDs
 uv
 validator
 validators
+vektah
 Version Control
 Vite
 Vitest

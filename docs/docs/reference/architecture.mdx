@@ -14,7 +14,7 @@ The command-line entry point and orchestration. It parses flags, optionally read
 
 ### `pkg/parser`
 
-The query parser. It reads `.gql` queries and mutations and builds the intermediate representation (IR) the templates render from. The parser is line-oriented: it walks the document by tracking brace depth rather than running a full GraphQL parser, building a relationship prefix for each selected leaf attribute. From the IR it produces the operation names used to call the Infrahub SDK and the typed fields used in the generated Go structs.
+The query parser. It reads `.gql` queries and mutations and builds the intermediate representation (IR) the templates render from. The parser uses a real GraphQL grammar ([`vektah/gqlparser`](https://github.com/vektah/gqlparser)): it parses each document into an AST and flattens the read query's selection set into a relationship prefix for each selected leaf attribute, so formatting does not affect parsing. Named fragment spreads are flattened; aliases, inline fragments, and directives are rejected with a clear error. From the IR it produces the operation names used to call the Infrahub SDK and the typed fields used in the generated Go structs.
 
 A document that leads with a mutation is classified as a resource; one that leads with a query is classified as a data source. The create / upsert / delete operation names are read verbatim from the mutations, falling back to the Infrahub `<Kind><Op>` convention when a name cannot be read. A resource's read query must select the node's own `id`.
 

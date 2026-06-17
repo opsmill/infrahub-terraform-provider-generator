@@ -1,20 +1,22 @@
 ---
-title: GraphQL file layout
+title: GraphQL query conventions
 ---
 
-# GraphQL file layout
+# GraphQL query conventions
 
-The parser that reads your `.gql` files is line-oriented. It walks the document brace by brace rather than running a full GraphQL parser, so the way you lay out a query matters. This guide describes the layout the generator expects.
+The generator reads your `.gql` files with a real GraphQL parser
+([`vektah/gqlparser`](https://github.com/vektah/gqlparser)), so **how you format
+a query does not matter** — several fields may share a line, indentation is
+irrelevant, and `#` comments are ignored anywhere (including comments that
+contain braces). What matters is that the query follows Infrahub's conventions,
+described below.
 
-## One field per line
+## Formatting is flexible
 
-Each selected field must sit on its own line. The parser keys off line boundaries to track which relationship block a field belongs to, so collapsing several fields onto one line is not supported.
-
-## Relationship blocks open on their own line
-
-A relationship block opens with `<name> {` on its own line:
+These three forms parse identically:
 
 ```graphql
+# multi-line
 edges {
   node {
     fqdn {
@@ -24,34 +26,74 @@ edges {
 }
 ```
 
-The parser uses the brace depth to build the relationship prefix for each leaf attribute, which is why the opening brace has to be on the same line as the relationship name.
-
-## Scalar attributes: single-line or multi-line
-
-A scalar attribute may be selected on a single line:
-
 ```graphql
-fqdn { value }
+# compact
+edges { node { fqdn { value } } }
 ```
 
-or spread across lines:
-
 ```graphql
-fqdn {
-  value
+# scalar on one line, with a comment
+edges {
+  node {
+    fqdn { value }  # the FQDN attribute
+  }
 }
 ```
 
-Both forms are accepted; the parser normalizes single-line scalar blocks before walking the document.
+## Relationship structure
+
+The generator derives the access paths into the generated SDK from the query's
+shape, so the **structure** of the selection still follows Infrahub's
+conventions:
+
+- Objects are read through the `edges` / `node` nesting.
+- A scalar attribute is selected as a `{ value }` sub-selection, such as
+  `fqdn { value }`; the generator treats any field whose only sub-selection is
+  scalar meta fields as a leaf attribute.
+
+```graphql
+query DctVCenterByName($vcenter_name: String!) {
+  DctVCenter(vcenter_name__value: $vcenter_name) {
+    edges { node { id fqdn { value } } }
+  }
+}
+```
 
 ## Resource documents
 
-A resource document is one create, one upsert, and one delete mutation, followed by a single-result read query. The create / upsert / delete operation names are taken verbatim from the mutations so the generated code calls the matching SDK functions.
+A resource document is one create, one upsert, and one delete mutation, followed
+by a single-result read query. The create / upsert / delete operation names are
+taken verbatim from the mutations so the generated code calls the matching SDK
+functions.
 
-The read query **must select the node's own `id`**. The generator uses that field to read the object back after a create or update; a resource document that does not select `id` is rejected.
+The read query **must select the node's own `id`**. The generator uses that
+field to read the object back after a create or update; a resource document that
+does not select `id` is rejected.
 
-A document that leads with a mutation is generated as a resource. A document that leads with a query is generated as a data source.
+A document that leads with a mutation is generated as a resource. A document that
+leads with a query is generated as a data source.
 
-## Inline single-line documents are not supported
+## Supported and unsupported constructs
 
-Because the parser is line-oriented, a document written entirely on one line cannot be parsed. Keep each operation, selection, and brace on its own line as shown above.
+**Supported**
+
+- Any syntactically valid GraphQL document following the conventions above,
+  in any formatting.
+- `#` comments, anywhere.
+- **Named fragment spreads** on the queried type — such as `...NodeFields` with
+  a matching `fragment NodeFields on <Kind> { ... }`. These are flattened into
+  the selection and generate the same source as writing the fields directly.
+
+**Unsupported — rejected with a clear, file-naming error (never silently
+mis-generated)**
+
+- **Field aliases** (`alias: field`) — the alias would rename the generated SDK
+  field and break the access path.
+- **Inline / type-condition fragments** (`... on Kind`) — these map to SDK
+  interface types and type assertions, not flat paths.
+- **Directives** (`@include`, `@skip`, …) at field, object, or operation level —
+  they could change which fields a query selects while the generated access path
+  still referenced them.
+
+When the generator encounters one of these, it stops with an error naming the
+file and the construct and writes no provider source.
