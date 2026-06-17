@@ -1,0 +1,22 @@
+pkg/parser/ast_parse.go
+  s_ed54a00333765a::t_c9cb3a242a3882 141-143
+  s_ed54a00333765a::t_a2db228ca518c7 111-116
+pkg/parser/ast_errors_test.go
+  s_ed54a00333765a::t_368016268de6dd 52-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "20ea659b27d5fab2d1c8e687fb139bc21e29e71e",
+  "prompts": {},
+  "sessions": {
+    "s_ed54a00333765a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c9dec00-da33-4fd1-97e5-e70f09c148ec",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Benoit Kohler <benoit+claude@opsmill.com>"
+    }
+  }
+}
