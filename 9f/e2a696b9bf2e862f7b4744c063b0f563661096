@@ -1,0 +1,33 @@
+docs/docs/reference/architecture.mdx
+  s_ed54a00333765a::t_d194fe9e8473e3 17
+docs/docs/readme.mdx
+  s_ed54a00333765a::t_c2590bd344de7d 34
+.vale/styles/spelling-exceptions.txt
+  s_ed54a00333765a::t_e7b516ca4d05bb 327
+  s_ed54a00333765a::t_e8915cffb8070b 115
+README.md
+  s_ed54a00333765a::t_32b0836d1c6598 57,59-63,67-69
+docs/docs/guides/graphql-file-layout.mdx
+  s_ed54a00333765a::t_0ebf8af4604061 83-85
+  s_ed54a00333765a::t_5c185d05f667bb 50-51
+  s_ed54a00333765a::t_f76d281d28addc 9-12
+  s_ed54a00333765a::t_ef0bae16c8b18e 2,5,7-8,14,16,19,29-32,35-40,43-49,52,55-58,64-78,80-82,87-88,90-96,98-99
+docs/docs/tutorials/getting-started.mdx
+  s_ed54a00333765a::t_fa91aecd3a0715 50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "9fe2a696b9bf2e862f7b4744c063b0f563661096",
+  "prompts": {},
+  "sessions": {
+    "s_ed54a00333765a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c9dec00-da33-4fd1-97e5-e70f09c148ec",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Benoit Kohler <benoit+claude@opsmill.com>"
+    }
+  }
+}
