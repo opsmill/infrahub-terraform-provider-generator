@@ -8,7 +8,12 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
+
+// httpClient bounds every schema fetch with a timeout so a hung or half-open
+// Infrahub cannot stall generation, independent of the caller's context.
+var httpClient = &http.Client{Timeout: 30 * time.Second}
 
 // apiSchema mirrors the subset of the /api/schema response we consume. The
 // endpoint inlines inherited (generic) attributes into each node's attributes
@@ -38,7 +43,7 @@ func Fetch(ctx context.Context, address, token, branch string) (*Registry, error
 	req.Header.Set("X-INFRAHUB-KEY", token)
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetching schema from %s: %w", endpoint, err)
 	}

@@ -22,10 +22,11 @@ const sampleSchemaJSON = `{
 }`
 
 func TestFetchBuildsRegistry(t *testing.T) {
-	var gotPath, gotKey string
+	var gotPath, gotKey, gotAccept string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		gotPath = req.URL.Path + "?" + req.URL.RawQuery
 		gotKey = req.Header.Get("X-INFRAHUB-KEY")
+		gotAccept = req.Header.Get("Accept")
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(sampleSchemaJSON))
 	}))
@@ -40,6 +41,9 @@ func TestFetchBuildsRegistry(t *testing.T) {
 	}
 	if gotKey != "tok-123" {
 		t.Errorf("X-INFRAHUB-KEY = %q, want tok-123", gotKey)
+	}
+	if gotAccept != "application/json" {
+		t.Errorf("Accept = %q, want application/json", gotAccept)
 	}
 
 	a, ok := reg.Attribute("DctVCenter", "total_vcpu")
@@ -70,5 +74,25 @@ func TestFetchErrorsOnBadJSON(t *testing.T) {
 
 	if _, err := Fetch(context.Background(), srv.URL, "tok", "main"); err == nil {
 		t.Fatal("expected an error on invalid JSON, got nil")
+	}
+}
+
+// TestFetchEmptyNodes confirms an empty schema yields a non-nil, lookup-safe
+// registry rather than a nil map that would panic (or a nil *Registry).
+func TestFetchEmptyNodes(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"nodes": []}`))
+	}))
+	defer srv.Close()
+
+	reg, err := Fetch(context.Background(), srv.URL, "tok", "main")
+	if err != nil {
+		t.Fatalf("Fetch returned error: %v", err)
+	}
+	if reg == nil {
+		t.Fatal("Fetch returned a nil registry for an empty schema")
+	}
+	if _, ok := reg.Attribute("Anything", "at_all"); ok {
+		t.Error("empty registry reported a hit")
 	}
 }
