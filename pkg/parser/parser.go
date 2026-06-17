@@ -432,7 +432,8 @@ func variableName(s string) string {
 // (letters, digits, underscore) of s.
 func scanIdentifier(s string) string {
 	for i, r := range s {
-		if !(r == '_' || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')) {
+		isIdent := r == '_' || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')
+		if !isIdent {
 			return s[:i]
 		}
 	}

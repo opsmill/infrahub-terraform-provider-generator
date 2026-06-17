@@ -132,12 +132,7 @@ func ReadAndGenerateDataSourcesAndResources(graphqlQuery, providerDirectory stri
 }
 
 func generateTerraformProvider(components TerraformComponents) (string, error) {
-	data := ProviderSourceTemplateData{
-		DataSources: components.DataSources,
-		Resources:   components.Resources,
-	}
-
-	return renderTemplate(templates.Provider, data)
+	return renderTemplate(templates.Provider, ProviderSourceTemplateData(components))
 }
 
 func generateTerraformDataSource(parsedQuery *InputGraphQLQuery) (string, error) {
