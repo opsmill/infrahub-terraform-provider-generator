@@ -1,0 +1,31 @@
+go_all:
+  - "**/*.go"
+  - "**/*.gotmpl"
+  - "go.mod"
+  - "go.sum"
+  - ".golangci.yaml"
+  - "Makefile"
+  - ".github/workflows/ci.yml"
+  - ".github/file-filters.yml"
+
+yaml_all:
+  - "**/*.yml"
+  - "**/*.yaml"
+  - ".yamllint.yml"
+
+md_all:
+  - "**/*.md"
+  - "**/*.mdx"
+
+docs_all:
+  - "docs/docs/**"
+  - "docs/src/**"
+  - "docs/static/**"
+  - "docs/docusaurus.config.ts"
+  - "docs/sidebars.ts"
+  - "docs/package.json"
+  - "docs/package-lock.json"
+  - "docs/tsconfig.json"
+  - "docs/babel.config.js"
+  - ".vale.ini"
+  - ".vale/**"
