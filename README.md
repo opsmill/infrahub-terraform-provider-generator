@@ -109,6 +109,39 @@ offline and types every attribute as `String`, exactly as before.
 
 ---
 
+## GraphQL input support
+
+The generator parses each `.gql` file with a GraphQL grammar, so formatting is
+free: fields may share a line, selections may be inlined, indentation is
+irrelevant, and `#` comments are ignored anywhere (including comments that
+contain braces).
+
+**Supported**
+
+- Any syntactically valid GraphQL document following Infrahub's conventions
+  (`edges`/`node` nesting, `{ value }` scalar selections, the
+  `<Kind>Create`/`Upsert`/`Delete` mutation-name convention).
+- Named fragment spreads on the queried type, e.g. `...NodeFields` with a
+  matching `fragment NodeFields on <Kind> { ... }`. These are flattened into the
+  selection and generate the same source as writing the fields inline.
+
+**Unsupported (rejected with a clear, file-naming error — never silently
+mis-generated)**
+
+- Field aliases (`alias: field`) — the alias would rename the genqlient Go
+  field and break the generated access path.
+- Inline / type-condition fragments (`... on Kind`) — these map to genqlient
+  interface types and type assertions, not flat paths.
+- Custom or built-in directives (`@include`, `@skip`, …).
+
+> **genqlient compatibility (maintainers):** named-fragment support assumes the
+> SDK's genqlient (in `infrahub-terraform-provider-template`) inlines the same
+> fragment spreads to the same Go field names this generator does. This holds
+> for same-type spreads. When adding a query that uses a fragment, verify once
+> that the generated provider compiles against the genqlient-built SDK.
+
+---
+
 ## What You'll See
 
 When you run the generator against a directory of queries:
