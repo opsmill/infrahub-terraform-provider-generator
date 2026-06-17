@@ -1,0 +1,19 @@
+docs/superpowers/plans/2026-06-17-graphql-library-parser.md
+  s_ed54a00333765a::t_f82a60daedb49e 1-834
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "a45d75aea149f47903427da3245a7e45a08dbe12",
+  "prompts": {},
+  "sessions": {
+    "s_ed54a00333765a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c9dec00-da33-4fd1-97e5-e70f09c148ec",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Benoit Kohler <benoit+claude@opsmill.com>"
+    }
+  }
+}
