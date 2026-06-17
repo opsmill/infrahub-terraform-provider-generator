@@ -3,15 +3,14 @@
 // resources) from the templates in pkg/templates.
 package parser
 
-// ResourceType classifies a parsed GraphQL operation.
+// ResourceType is the kind of Terraform component a GraphQL operation maps to.
+type ResourceType int
+
+// The kinds of Terraform component a parsed GraphQL operation can produce.
 const (
 	DataSource ResourceType = iota
 	Resource
-	Function
 )
-
-// ResourceType is the kind of Terraform component a GraphQL query maps to.
-type ResourceType int
 
 // InputGraphQLQuery is the intermediate representation produced by parsing a
 // single GraphQL query, holding everything the templates need to render.
@@ -24,7 +23,7 @@ type InputGraphQLQuery struct {
 	CreateOp                string
 	UpsertOp                string
 	DeleteOp                string
-	Fields                  []Field
+	IDFieldName             string // struct field name of the node's own id (resources only)
 	GenqlientFields         []GenqlientField
 	genqlientFieldsModify   []GenqlientField
 	genqlientFieldsReadOnly []GenqlientField
@@ -42,12 +41,11 @@ type Field struct {
 // the value through the genqlient-generated SDK.
 type GenqlientField struct {
 	Field
-	Query                  string
-	QueryNoPrefixReplaceId string
-	InputObjectNames       string
-	PlainObject            string
-	Kind                   string // Infrahub AttributeKind; "" means untyped (String).
-	Optional               bool   // true unless the schema marks the attribute required.
+	Query            string // read path, e.g. "DctVCenter.Edges[0].Node.Fqdn.Value"
+	InputObjectNames string // mutation input field path, with edges/node removed
+	PlainObject      string // mutation response path, with edges/node removed
+	Kind             string // Infrahub AttributeKind; "" means untyped (String).
+	Optional         bool   // true unless the schema marks the attribute required.
 }
 
 // DataSourceTemplateData is the data passed to the data source template.
@@ -58,7 +56,6 @@ type DataSourceTemplateData struct {
 	RequiredField   GenqlientField
 	ReadOp          string
 	StructName      string
-	Fields          []Field
 	GenqlientFields []GenqlientField
 }
 
@@ -72,8 +69,8 @@ type ResourceTemplateData struct {
 	CreateOp                string
 	UpsertOp                string
 	DeleteOp                string
+	IDFieldName             string
 	StructName              string
-	Fields                  []Field
 	GenqlientFields         []GenqlientField
 	GenqlientFieldsModify   []GenqlientField
 	GenqlientFieldsReadOnly []GenqlientField
@@ -83,7 +80,6 @@ type ResourceTemplateData struct {
 type ProviderSourceTemplateData struct {
 	DataSources []string
 	Resources   []string
-	Functions   []string
 }
 
 // TerraformComponents lists the names of the data sources and resources the

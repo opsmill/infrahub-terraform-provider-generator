@@ -1,6 +1,4 @@
-package templates
-
-const ResourceTemplateContent = `package provider
+package provider
 
 import (
 	"context"
@@ -29,10 +27,10 @@ func New{{.QueryName | title }}Resource() resource.Resource {
 type {{.QueryName }}Resource struct {
 	client         *graphql.Client
 	{{- if .Required }}
-	{{ .Required | title }} {{ tfType .RequiredField }} ` + "`tfsdk:\"{{ .Required }}\"`" + `
+	{{ .Required | title }} {{ tfType .RequiredField }} `tfsdk:"{{ .Required }}"`
 	{{- end }}
 	{{- range .GenqlientFields }}
-	{{ .Name | title }} {{ tfType . }} ` + "`tfsdk:\"{{ .HumanReadableName }}\"`" + `
+	{{ .Name | title }} {{ tfType . }} `tfsdk:"{{ .HumanReadableName }}"`
 	{{- end }}
 }
 
@@ -73,8 +71,6 @@ func (r *{{.QueryName}}Resource) Schema(_ context.Context, _ resource.SchemaRequ
 func (r *{{.QueryName}}Resource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Retrieve values from plan
 	var plan {{.QueryName}}Resource
-	tflog.Info(ctx, req.Config.Raw.String())
-	tflog.Info(ctx, req.Plan.Raw.String())
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -117,14 +113,12 @@ func (r *{{.QueryName}}Resource) Create(ctx context.Context, req resource.Create
 	plan.{{ .Name | title }} = {{ readCtor . }}(response.{{ $defaultCreateObject }}Create.Object.{{ .PlainObject }})
 	{{- end }}
 
-
 	// Set state to fully populated data
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
 }
 
 // Read refreshes the Terraform state with the latest data.
@@ -159,8 +153,6 @@ func (r *{{.QueryName}}Resource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
-
-	{{- $defaultObject :=  .ObjectName }}
 	{{- range .GenqlientFields }}
 	state.{{ .Name | title }} = {{ readCtor . }}(response.{{ .Query }})
 	{{- end }}
@@ -210,9 +202,7 @@ func (r *{{.QueryName}}Resource) Update(ctx context.Context, req resource.Update
 	updateInput.{{ .InputObjectNames }} = {{ sdkUpdate . }}{Value: plan.{{ .Name | title }}.{{ writeAccessor . }}}
 	{{- end }}
 	{{- end }}
-	{{- $idElement :=  (index .GenqlientFieldsReadOnly 0).Name | title  }}
-	updateInput.Id = state.{{$idElement}}.ValueString()
-
+	updateInput.Id = state.{{ .IDFieldName | title }}.ValueString()
 
 	// Log the update operation
 	tflog.Info(ctx, fmt.Sprintf("Updating {{ .QueryName | title }} %v", state.{{ .Required | title }}))
@@ -221,7 +211,7 @@ func (r *{{.QueryName}}Resource) Update(ctx context.Context, req resource.Update
 	response, err := infrahub_sdk.{{ .UpsertOp }}(ctx, *r.client, updateInput)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Unable to update device in Infrahub",
+			"Unable to update {{ .QueryName }} in Infrahub",
 			err.Error(),
 		)
 		return
@@ -250,8 +240,7 @@ func (r *{{.QueryName}}Resource) Delete(ctx context.Context, req resource.Delete
 		return
 	}
 
-	{{- $firstId :=  (index .GenqlientFieldsReadOnly 0).Name | title  }}
-	_, err := infrahub_sdk.{{ .DeleteOp }}(ctx, *r.client, state.{{$firstId}}.ValueString())
+	_, err := infrahub_sdk.{{ .DeleteOp }}(ctx, *r.client, state.{{ .IDFieldName | title }}.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Deleting {{ .QueryName | title }}",
@@ -261,24 +250,4 @@ func (r *{{.QueryName}}Resource) Delete(ctx context.Context, req resource.Delete
 	}
 }
 
-// Configure adds the provider configured client to the resource.
-func (r *{{.QueryName}}Resource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	// Add a nil check when handling ProviderData because Terraform
-	// sets that data after it calls the ConfigureProvider RPC.
-	if req.ProviderData == nil {
-		return
-	}
-
-	client, ok := req.ProviderData.(graphql.Client)
-	if !ok {
-		resp.Diagnostics.AddError(
-			"Unexpected Resource Configure Type",
-			fmt.Sprintf("Expected *graphql.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
-		)
-
-		return
-	}
-
-	r.client = &client
-}
-`
+{{ template "configure" (dict "Recv" "r" "Struct" (printf "%sResource" .QueryName) "Pkg" "resource" "Label" "Resource" "Noun" "resource") }}

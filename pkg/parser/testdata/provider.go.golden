@@ -1,6 +1,4 @@
-package templates
-
-const ProviderTemplateContent = `package provider
+package provider
 
 import (
 	"context"
@@ -32,9 +30,9 @@ type InfrahubProvider struct {
 
 // InfrahubProviderModel describes the provider data model.
 type InfrahubProviderModel struct {
-	ApiKey         types.String ` + "`tfsdk:\"api_key\"`" + `
-	InfrahubServer types.String ` + "`tfsdk:\"infrahub_server\"`" + `
-	Branch         types.String ` + "`tfsdk:\"branch\"`" + `
+	ApiKey         types.String `tfsdk:"api_key"`
+	InfrahubServer types.String `tfsdk:"infrahub_server"`
+	Branch         types.String `tfsdk:"branch"`
 }
 
 func New(version string) func() provider.Provider {
@@ -107,12 +105,15 @@ func (p *InfrahubProvider) Configure(ctx context.Context, req provider.Configure
 		)
 	}
 
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	// Default values to environment variables, but override
 	// with Terraform configuration value if set.
 
 	infrahubApi := os.Getenv("INFRAHUB_API")
-	infrahub_server := os.Getenv("INFRAHUB_SERVER")
+	infrahubServer := os.Getenv("INFRAHUB_SERVER")
 	branch := os.Getenv("INFRAHUB_BRANCH")
 
 	if !data.ApiKey.IsNull() {
@@ -120,13 +121,12 @@ func (p *InfrahubProvider) Configure(ctx context.Context, req provider.Configure
 	}
 
 	if !data.InfrahubServer.IsNull() {
-		infrahub_server = data.InfrahubServer.ValueString()
+		infrahubServer = data.InfrahubServer.ValueString()
 	}
 
 	if !data.Branch.IsNull() {
 		branch = data.Branch.ValueString()
 	}
-
 
 	if infrahubApi == "" {
 		resp.Diagnostics.AddAttributeError(
@@ -138,7 +138,7 @@ func (p *InfrahubProvider) Configure(ctx context.Context, req provider.Configure
 		)
 	}
 
-	if infrahub_server == "" {
+	if infrahubServer == "" {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("infrahub_server"),
 			"Missing Infrahub Server address",
@@ -158,6 +158,10 @@ func (p *InfrahubProvider) Configure(ctx context.Context, req provider.Configure
 		)
 	}
 
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	httpClient := &http.Client{
 		Transport: &AuthTransport{
 			Token:     infrahubApi,
@@ -165,34 +169,23 @@ func (p *InfrahubProvider) Configure(ctx context.Context, req provider.Configure
 		},
 	}
 
-	client := graphql.NewClient(fmt.Sprintf("%s/graphql/%s", infrahub_server, branch), httpClient)
+	client := graphql.NewClient(fmt.Sprintf("%s/graphql/%s", infrahubServer, branch), httpClient)
 
 	resp.DataSourceData = client
 	resp.ResourceData = client
 }
 
 func (p *InfrahubProvider) Resources(ctx context.Context) []func() resource.Resource {
-    {{- if .Resources }}
-    return []func() resource.Resource{
-        {{- range .Resources }}
-        New{{ . | title }}Resource,
-        {{- end }}
-    }
-    {{- else }}
-    return nil
-    {{- end }}
+	return []func() resource.Resource{
+		NewDctvcenterbynameResource,
+	}
 }
 
 func (p *InfrahubProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
-    {{- if .DataSources }}
-    return []func() datasource.DataSource{
-        {{- range .DataSources }}
-        New{{ . | title }}DataSource,
-        {{- end }}
-    }
-    {{- else }}
-    return nil
-    {{- end }}
+	return []func() datasource.DataSource{
+		NewDctvcenterbynameDataSource,
+		NewArtifactDataSource,
+	}
 }
 
 func (p *InfrahubProvider) Functions(ctx context.Context) []func() function.Function {
@@ -209,4 +202,3 @@ func (a *AuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req.Header.Add("X-INFRAHUB-KEY", a.Token)
 	return a.Transport.RoundTrip(req)
 }
-`

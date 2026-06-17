@@ -1,0 +1,256 @@
+package provider
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/Khan/genqlient/graphql"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
+	infrahub_sdk "github.com/opsmill/infrahub-sdk-go"
+)
+
+// Ensure the implementation satisfies the expected interfaces.
+var (
+	_ resource.Resource              = &dctVCenterByNameResource{}
+	_ resource.ResourceWithConfigure = &dctVCenterByNameResource{}
+)
+
+// NewDctvcenterbynameResource is a helper function to simplify the provider implementation.
+func NewDctvcenterbynameResource() resource.Resource {
+	return &dctVCenterByNameResource{}
+}
+
+// dctVCenterByNameResource is the resource implementation.
+type dctVCenterByNameResource struct {
+	client             *graphql.Client
+	Vcenter_name       types.String `tfsdk:"vcenter_name"`
+	Edges_node_id      types.String `tfsdk:"id"`
+	Edges_node_fqdn    types.String `tfsdk:"fqdn"`
+	Edges_node_version types.String `tfsdk:"version"`
+}
+
+// Metadata returns the resource type name.
+func (r *dctVCenterByNameResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_dctVCenterByName"
+}
+
+// Schema defines the schema for the resource.
+func (r *dctVCenterByNameResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"vcenter_name": schema.StringAttribute{
+				Required: true,
+			},
+			"id": schema.StringAttribute{
+				Computed: true,
+			},
+			"fqdn": schema.StringAttribute{
+				Computed: true,
+				Optional: true,
+			},
+			"version": schema.StringAttribute{
+				Computed: true,
+				Optional: true,
+			},
+		},
+	}
+}
+
+// Create creates the resource and sets the initial Terraform state.
+func (r *dctVCenterByNameResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	// Retrieve values from plan
+	var plan dctVCenterByNameResource
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var defaultDctvcenterbyname infrahub_sdk.DctVCenterCreateInput
+
+	// Assign each attribute, wrapping the value in the Infrahub input type.
+	defaultDctvcenterbyname.Vcenter_name = infrahub_sdk.TextAttributeCreate{Value: plan.Vcenter_name.ValueString()}
+	// Only send attributes the user actually set; sending an unset optional
+	// attribute as an empty value makes Infrahub reject non-text kinds (e.g. a
+	// Number attribute fails with "Expected type 'BigInt'").
+	if !plan.Edges_node_fqdn.IsNull() {
+		defaultDctvcenterbyname.Fqdn = infrahub_sdk.TextAttributeCreate{Value: plan.Edges_node_fqdn.ValueString()}
+	}
+	// Only send attributes the user actually set; sending an unset optional
+	// attribute as an empty value makes Infrahub reject non-text kinds (e.g. a
+	// Number attribute fails with "Expected type 'BigInt'").
+	if !plan.Edges_node_version.IsNull() {
+		defaultDctvcenterbyname.Version = infrahub_sdk.TextAttributeCreate{Value: plan.Edges_node_version.ValueString()}
+	}
+
+	tflog.Info(ctx, fmt.Sprint("Creating Dctvcenterbyname ", plan.Vcenter_name))
+
+	response, err := infrahub_sdk.DctVCenterCreate(ctx, *r.client, defaultDctvcenterbyname)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to create dctVCenterByName in Infrahub",
+			err.Error(),
+		)
+		return
+	}
+	plan.Edges_node_id = types.StringValue(response.DctVCenterCreate.Object.GetId())
+	plan.Edges_node_fqdn = types.StringValue(response.DctVCenterCreate.Object.Fqdn.Value)
+	plan.Edges_node_version = types.StringValue(response.DctVCenterCreate.Object.Version.Value)
+
+	// Set state to fully populated data
+	diags = resp.State.Set(ctx, plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+}
+
+// Read refreshes the Terraform state with the latest data.
+func (r *dctVCenterByNameResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	tflog.Info(ctx, "Reading Dctvcenterbyname...")
+	var state dctVCenterByNameResource
+
+	// Read configuration into config
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	tflog.Info(ctx, fmt.Sprint("Reading Dctvcenterbyname ", state.Vcenter_name))
+
+	// Call the API with the specified key attribute from the configuration
+	response, err := infrahub_sdk.DctVCenterByName(ctx, *r.client, state.Vcenter_name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read dctVCenterByName from Infrahub",
+			err.Error(),
+		)
+		return
+	}
+
+	if len(response.DctVCenter.Edges) != 1 {
+		resp.Diagnostics.AddError(
+			"Didn't receive a single dctVCenterByName, query didn't return exactly 1 dctVCenterByName",
+			"Expected exactly 1 dctVCenterByName in response, got a different count.",
+		)
+		return
+	}
+	state.Edges_node_id = types.StringValue(response.DctVCenter.Edges[0].Node.GetId())
+	state.Edges_node_fqdn = types.StringValue(response.DctVCenter.Edges[0].Node.Fqdn.Value)
+	state.Edges_node_version = types.StringValue(response.DctVCenter.Edges[0].Node.Version.Value)
+
+	diags = resp.State.Set(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+}
+
+// Update updates the resource and sets the updated Terraform state on success.
+func (r *dctVCenterByNameResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	// Retrieve the planned configuration values from Terraform
+	var plan dctVCenterByNameResource
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Retrieve the current state
+	var state dctVCenterByNameResource
+	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var updateInput infrahub_sdk.DctVCenterUpsertInput
+
+	// Prepare the update input using values from the plan and applying defaults
+	updateInput.Vcenter_name = infrahub_sdk.TextAttributeUpdate{Value: plan.Vcenter_name.ValueString()}
+	// Carry forward the prior value when the plan omits it, but never send an
+	// empty value: Infrahub rejects it for non-text kinds (e.g. a Number
+	// attribute fails with "Expected type 'BigInt'").
+	if !plan.Edges_node_fqdn.IsNull() {
+		updateInput.Fqdn = infrahub_sdk.TextAttributeUpdate{Value: plan.Edges_node_fqdn.ValueString()}
+	} else if !state.Edges_node_fqdn.IsNull() {
+		updateInput.Fqdn = infrahub_sdk.TextAttributeUpdate{Value: state.Edges_node_fqdn.ValueString()}
+	}
+	// Carry forward the prior value when the plan omits it, but never send an
+	// empty value: Infrahub rejects it for non-text kinds (e.g. a Number
+	// attribute fails with "Expected type 'BigInt'").
+	if !plan.Edges_node_version.IsNull() {
+		updateInput.Version = infrahub_sdk.TextAttributeUpdate{Value: plan.Edges_node_version.ValueString()}
+	} else if !state.Edges_node_version.IsNull() {
+		updateInput.Version = infrahub_sdk.TextAttributeUpdate{Value: state.Edges_node_version.ValueString()}
+	}
+	updateInput.Id = state.Edges_node_id.ValueString()
+
+	// Log the update operation
+	tflog.Info(ctx, fmt.Sprintf("Updating Dctvcenterbyname %v", state.Vcenter_name))
+
+	// Send the update request to the API
+	response, err := infrahub_sdk.DctVCenterUpsert(ctx, *r.client, updateInput)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to update dctVCenterByName in Infrahub",
+			err.Error(),
+		)
+		return
+	}
+	plan.Edges_node_id = types.StringValue(response.DctVCenterUpsert.Object.GetId())
+	plan.Edges_node_fqdn = types.StringValue(response.DctVCenterUpsert.Object.Fqdn.Value)
+	plan.Edges_node_version = types.StringValue(response.DctVCenterUpsert.Object.Version.Value)
+
+	// Set the updated state with the latest data
+	diags = resp.State.Set(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+}
+
+// Delete deletes the resource and removes the Terraform state on success.
+func (r *dctVCenterByNameResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	// Retrieve values from state
+	var state dctVCenterByNameResource
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	_, err := infrahub_sdk.DctVCenterDelete(ctx, *r.client, state.Edges_node_id.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error Deleting Dctvcenterbyname",
+			"Could not delete dctVCenterByName, unexpected error: "+err.Error(),
+		)
+		return
+	}
+}
+
+// Configure adds the provider configured client to the resource.
+func (r *dctVCenterByNameResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	// Add a nil check when handling ProviderData because Terraform
+	// sets that data after it calls the ConfigureProvider RPC.
+	if req.ProviderData == nil {
+		return
+	}
+
+	client, ok := req.ProviderData.(graphql.Client)
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Unexpected Resource Configure Type",
+			fmt.Sprintf("Expected *graphql.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+		)
+
+		return
+	}
+
+	r.client = &client
+}

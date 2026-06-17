@@ -18,11 +18,9 @@ import (
 // shared because a cases.Caser is safe for concurrent use.
 var titleCaser = cases.Title(language.English)
 
-// renderTemplate parses content as a text/template and executes it with data.
-// text/template (not html/template) is used because the rendered output is Go
-// source code, which must never be HTML-escaped.
-func renderTemplate(name, content string, data any) (string, error) {
-	tmpl, err := template.New(name).Funcs(template.FuncMap{
+// templateFuncs are the helpers available to every template.
+func templateFuncs() template.FuncMap {
+	return template.FuncMap{
 		"title":         titleCaser.String,
 		"tfType":        tfType,
 		"tfAttr":        tfAttr,
@@ -30,14 +28,40 @@ func renderTemplate(name, content string, data any) (string, error) {
 		"sdkUpdate":     sdkUpdate,
 		"writeAccessor": writeAccessor,
 		"readCtor":      readCtor,
-	}).Parse(content)
+		"dict":          dict,
+	}
+}
+
+// dict builds a map from alternating key/value arguments, letting a template
+// pass a small struct of values to a shared partial (e.g. the Configure block).
+func dict(kv ...any) (map[string]any, error) {
+	if len(kv)%2 != 0 {
+		return nil, fmt.Errorf("dict: got %d arguments, want an even number", len(kv))
+	}
+	m := make(map[string]any, len(kv)/2)
+	for i := 0; i < len(kv); i += 2 {
+		key, ok := kv[i].(string)
+		if !ok {
+			return nil, fmt.Errorf("dict: key %d is %T, want string", i, kv[i])
+		}
+		m[key] = kv[i+1]
+	}
+	return m, nil
+}
+
+// renderTemplate parses the named template file (alongside the shared base
+// partials) from the embedded template FS and executes it with data.
+// text/template (not html/template) is used because the rendered output is Go
+// source code, which must never be HTML-escaped.
+func renderTemplate(file string, data any) (string, error) {
+	tmpl, err := template.New(templates.Base).Funcs(templateFuncs()).ParseFS(templates.FS, templates.Base, file)
 	if err != nil {
-		return "", fmt.Errorf("parsing %s template: %w", name, err)
+		return "", fmt.Errorf("parsing %s template: %w", file, err)
 	}
 
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
-		return "", fmt.Errorf("executing %s template: %w", name, err)
+	if err := tmpl.ExecuteTemplate(&buf, file, data); err != nil {
+		return "", fmt.Errorf("executing %s template: %w", file, err)
 	}
 
 	return buf.String(), nil
@@ -113,7 +137,7 @@ func generateTerraformProvider(components TerraformComponents) (string, error) {
 		Resources:   components.Resources,
 	}
 
-	return renderTemplate("provider", templates.ProviderTemplateContent, data)
+	return renderTemplate(templates.Provider, data)
 }
 
 func generateTerraformDataSource(parsedQuery *InputGraphQLQuery) (string, error) {
@@ -124,11 +148,10 @@ func generateTerraformDataSource(parsedQuery *InputGraphQLQuery) (string, error)
 		RequiredField:   parsedQuery.RequiredField,
 		ReadOp:          parsedQuery.ReadOp,
 		StructName:      parsedQuery.QueryName + "DataSource",
-		Fields:          parsedQuery.Fields,
 		GenqlientFields: parsedQuery.GenqlientFields,
 	}
 
-	return renderTemplate("datasource", templates.DatasourceTemplateContent, data)
+	return renderTemplate(templates.DataSource, data)
 }
 
 func generateTerraformResource(parsedQuery *InputGraphQLQuery) (string, error) {
@@ -141,20 +164,20 @@ func generateTerraformResource(parsedQuery *InputGraphQLQuery) (string, error) {
 		CreateOp:                parsedQuery.CreateOp,
 		UpsertOp:                parsedQuery.UpsertOp,
 		DeleteOp:                parsedQuery.DeleteOp,
+		IDFieldName:             parsedQuery.IDFieldName,
 		StructName:              parsedQuery.QueryName + "Resource",
-		Fields:                  parsedQuery.Fields,
 		GenqlientFields:         parsedQuery.GenqlientFields,
 		GenqlientFieldsModify:   parsedQuery.genqlientFieldsModify,
 		GenqlientFieldsReadOnly: parsedQuery.genqlientFieldsReadOnly,
 	}
 
-	return renderTemplate("resource", templates.ResourceTemplateContent, data)
+	return renderTemplate(templates.Resource, data)
 }
 
 // GenerateArtifactDatasource writes the static artifact data source, used to
 // fetch generated artifacts from Infrahub's storage API, into providerDirectory.
 func GenerateArtifactDatasource(providerDirectory string) error {
-	code, err := renderTemplate("artifact", templates.ArtifactTemplateContent, "")
+	code, err := renderTemplate(templates.Artifact, nil)
 	if err != nil {
 		return err
 	}

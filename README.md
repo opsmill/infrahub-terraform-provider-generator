@@ -26,7 +26,7 @@ Generate a provider tailored to your Infrahub schema, then manage Infrahub the w
 
 ## Prerequisites
 
-- [Go](https://go.dev) 1.23+ to run the generator
+- [Go](https://go.dev) 1.25+ to run the generator
 - A directory of Infrahub GraphQL queries (`.gql` files) — queries become data sources, mutations become resources
 - A running [Infrahub](https://github.com/opsmill/infrahub) instance and an API key for the generated provider to use at apply time
 
@@ -53,6 +53,23 @@ go run github.com/opsmill/infrahub-terraform-provider-generator/cmd/generator \
 | `-infrahub-address` | `$INFRAHUB_ADDRESS` | Infrahub base URL; with `-api-token`, attribute types are read from the live schema |
 | `-api-token` | `$INFRAHUB_API_TOKEN` | API token, sent as the `X-INFRAHUB-KEY` header |
 | `-branch` | `main` | Infrahub branch to read the schema from |
+
+### GraphQL file layout
+
+The parser is line-oriented: each selected field must sit on its own line, and a
+relationship block opens with `<name> {` on its own line. A scalar attribute may
+be selected on a single line (`fqdn { value }`) or across lines:
+
+```graphql
+fqdn {
+  value
+}
+```
+
+A resource document is one create, one upsert and one delete mutation followed
+by a single-result read query, and its read query **must select the node's own
+`id`**. Inline single-line documents (the whole query on one line) are not
+supported.
 
 ### Attribute typing from the schema
 

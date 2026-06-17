@@ -1,6 +1,4 @@
-package templates
-
-const DatasourceTemplateContent = `package provider
+package provider
 
 import (
 	"context"
@@ -29,19 +27,19 @@ func New{{.QueryName | title }}DataSource() datasource.DataSource {
 type {{.StructName}} struct {
 	client     *graphql.Client
 	{{- if .Required }}
-	{{.Required | title }} {{ tfType .RequiredField }} ` + "`tfsdk:\"{{.Required}}\"`" + `
+	{{.Required | title }} {{ tfType .RequiredField }} `tfsdk:"{{.Required}}"`
 	{{- range .GenqlientFields }}
-	{{ .Name | title }} {{ tfType . }} ` + "`tfsdk:\"{{ .HumanReadableName }}\"`" + `
+	{{ .Name | title }} {{ tfType . }} `tfsdk:"{{ .HumanReadableName }}"`
 	{{- end }}
 	{{- else }}
-	{{ .QueryName | title }} []{{ .QueryName }}Model ` + "`tfsdk:\"{{ .QueryName }}\"`" + `
+	{{ .QueryName | title }} []{{ .QueryName }}Model `tfsdk:"{{ .QueryName }}"`
 	{{- end }}
 }
 
 {{- if not .Required }}
 type {{ .QueryName}}Model struct {
 	{{- range .GenqlientFields }}
-	{{ .Name | title }} {{ tfType . }} ` + "`tfsdk:\"{{ .HumanReadableName }}\"`" + `
+	{{ .Name | title }} {{ tfType . }} `tfsdk:"{{ .HumanReadableName }}"`
 	{{- end }}
 }
 {{- end }}
@@ -143,24 +141,4 @@ func (d *{{.QueryName }}DataSource) Read(ctx context.Context, req datasource.Rea
 	}
 }
 
-// Configure adds the provider configured client to the data source.
-func (d *{{.QueryName}}DataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
-	// Add a nil check when handling ProviderData because Terraform
-	// sets that data after it calls the ConfigureProvider RPC.
-	if req.ProviderData == nil {
-		return
-	}
-
-	client, ok := req.ProviderData.(graphql.Client)
-	if !ok {
-		resp.Diagnostics.AddError(
-			"Unexpected Data Source Configure Type",
-			fmt.Sprintf("Expected *graphql.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
-		)
-
-		return
-	}
-
-	d.client = &client
-}
-`
+{{ template "configure" (dict "Recv" "d" "Struct" (printf "%sDataSource" .QueryName) "Pkg" "datasource" "Label" "Data Source" "Noun" "data source") }}
