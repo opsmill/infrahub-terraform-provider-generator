@@ -17,11 +17,14 @@ import (
 // CheckRedirect drops the X-INFRAHUB-KEY header when a redirect crosses to a
 // different host: Go's client only strips Authorization/Cookie/WWW-Authenticate
 // on a cross-host redirect, not arbitrary custom headers, so without this a 30x
-// to another host would re-send the API token to that host.
+// to another host would re-send the API token to that host. The comparison is
+// on the hostname only (not the port or scheme), so a same-host http->https
+// upgrade or port change keeps the token while a true cross-host redirect drops
+// it.
 var httpClient = &http.Client{
 	Timeout: 30 * time.Second,
 	CheckRedirect: func(req *http.Request, via []*http.Request) error {
-		if len(via) > 0 && req.URL.Host != via[0].URL.Host {
+		if len(via) > 0 && req.URL.Hostname() != via[0].URL.Hostname() {
 			req.Header.Del("X-INFRAHUB-KEY")
 		}
 		return nil
