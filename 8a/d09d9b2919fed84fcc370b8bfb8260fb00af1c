@@ -1,0 +1,26 @@
+pkg/schema/fetch_test.go
+  s_33582454805a52::t_324fed5582625f 25,29,45-46
+  s_33582454805a52::t_36a1476f1cd1d8 79-98
+pkg/schema/fetch.go
+  s_33582454805a52::t_8f0f20285a214b 11,14-16
+  s_33582454805a52::t_2e9a3c5e6b9f7b 46
+cmd/generator/main.go
+  s_33582454805a52::t_0dc1881b25d712 27-28,33-43,45-49,54-55,57-58
+  s_33582454805a52::t_74fb2321e2d20d 5,11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "8ad09d9b2919fed84fcc370b8bfb8260fb00af1c",
+  "prompts": {},
+  "sessions": {
+    "s_33582454805a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "61c2da70-70db-4bad-88cb-72bf29ac0f3b",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Benoit Kohler <benoit+claude@opsmill.com>"
+    }
+  }
+}
