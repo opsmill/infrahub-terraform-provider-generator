@@ -1,0 +1,29 @@
+pkg/schema/fetch.go
+  s_ed54a00333765a::t_265d6d45dbd69e 16-29
+pkg/parser/parser.go
+  s_ed54a00333765a::t_5ce4fea980a40a 93-95
+  s_ed54a00333765a::t_962f464bcc768f 241
+pkg/parser/ast_errors_test.go
+  s_ed54a00333765a::t_3e63b0c5c6b82e 82-101
+pkg/parser/parser_robustness_test.go
+  s_ed54a00333765a::t_ab6919b3d575be 217-262
+pkg/parser/ast_parse.go
+  s_ed54a00333765a::t_f93e53b36ed0cf 208-267
+  s_ed54a00333765a::t_f78423b196ba10 120-127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "384d63f6abcf703092e86cbf4a2d7059d378d5b1",
+  "prompts": {},
+  "sessions": {
+    "s_ed54a00333765a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c9dec00-da33-4fd1-97e5-e70f09c148ec",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Benoit Kohler <benoit+claude@opsmill.com>"
+    }
+  }
+}
