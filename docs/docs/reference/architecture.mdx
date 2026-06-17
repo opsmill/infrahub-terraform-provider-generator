@@ -1,0 +1,39 @@
+---
+title: Architecture
+---
+
+# Architecture
+
+The repository is the generator itself: the command-line tool and the templates it renders. This page describes the components and how a `.gql` file becomes provider source.
+
+## Components
+
+### `cmd/generator`
+
+The command-line entry point and orchestration. It parses flags, optionally reads the live schema, then walks the `.gql` directory and drives the parser. For each document it writes a data source or resource, optionally writes the artifact data source, and finally writes `provider.go` registering everything.
+
+### `pkg/parser`
+
+The query parser. It reads `.gql` queries and mutations and builds the intermediate representation (IR) the templates render from. The parser is line-oriented: it walks the document by tracking brace depth rather than running a full GraphQL parser, building a relationship prefix for each selected leaf attribute. From the IR it produces the operation names used to call the Infrahub SDK and the typed fields used in the generated Go structs.
+
+A document that leads with a mutation is classified as a resource; one that leads with a query is classified as a data source. The create / upsert / delete operation names are read verbatim from the mutations, falling back to the Infrahub `<Kind><Op>` convention when a name cannot be read. A resource's read query must select the node's own `id`.
+
+### `pkg/templates`
+
+The Go templates for the generated provider. The template files are embedded into the binary with `//go:embed *.gotmpl` and parsed by the parser package. There are templates for the provider entry point, resources, data sources, and the artifact data source. A shared `base.gotmpl` defines partials, such as the common `Configure` method, that the other templates reuse.
+
+### `pkg/schema`
+
+The optional live-schema registry used for typing. `Fetch` reads the schema for a branch from an Infrahub instance and builds a registry; `Registry.Attribute` looks up an attribute's `Kind` and `Optional` flag for a given node. When the flags are absent the registry is empty and every attribute falls back to `String`.
+
+## How a `.gql` file becomes provider source
+
+1. `cmd/generator` parses flags and, when configured, fetches the schema into a registry.
+2. It walks `-gql-dir` and reads each `.gql` file.
+3. `pkg/parser` classifies each document and parses it into the IR, stamping each field's type from the registry.
+4. The IR is rendered through the embedded templates in `pkg/templates`.
+5. The rendered Go source is written to `-provider-dir`: a data source or resource per document, and a final `provider.go`.
+
+## What the generated provider builds on
+
+The generated provider is built on the [Terraform Plugin Framework](https://developer.hashicorp.com/terraform/plugin/framework) and calls Infrahub through a [genqlient](https://github.com/Khan/genqlient)-generated Go SDK. This tool generates the provider's source code; compiling, versioning, and publishing the provider are separate steps in your own build pipeline.

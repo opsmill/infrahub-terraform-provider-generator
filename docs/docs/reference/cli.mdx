@@ -1,0 +1,45 @@
+---
+title: CLI reference
+---
+
+# CLI reference
+
+The generator is a single command. Run it with `--help` to print the flags, or use the table below.
+
+```bash
+go run github.com/opsmill/infrahub-terraform-provider-generator/cmd/generator [flags]
+```
+
+## Flags
+
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `-gql-dir` | `gql` | Directory to scan for `.gql` query files. |
+| `-provider-dir` | `internal/provider` | Directory to write the generated provider source into. |
+| `-artifacts` | `false` | Also generate the artifact data source. |
+| `-infrahub-address` | _empty_ (env `INFRAHUB_ADDRESS`) | Infrahub base URL. With `-api-token`, attribute types are read from the live schema. |
+| `-api-token` | _empty_ (env `INFRAHUB_API_TOKEN`) | API token, sent as the `X-INFRAHUB-KEY` header. |
+| `-branch` | `main` | Infrahub branch to read the schema from. |
+
+## Environment-variable fallbacks
+
+`-infrahub-address` and `-api-token` both default to empty. After flag parsing, an empty value falls back to its environment variable:
+
+- `-infrahub-address` falls back to `INFRAHUB_ADDRESS`.
+- `-api-token` falls back to `INFRAHUB_API_TOKEN`.
+
+This lets you keep the token out of your shell history by exporting it instead of passing it on the command line:
+
+```bash
+export INFRAHUB_ADDRESS=https://infrahub.example.com
+export INFRAHUB_API_TOKEN=your-token
+go run github.com/opsmill/infrahub-terraform-provider-generator/cmd/generator -gql-dir gql
+```
+
+## Reading the live schema
+
+The address and token must be set together to read the live schema. If only one is provided (whether by flag or environment variable), the generator stops with an error rather than running half-configured.
+
+When both are set, the generator authenticates with the `X-INFRAHUB-KEY` header, reads the schema for `-branch`, and types attributes from it. See [Schema typing](../guides/schema-typing) for the kind-to-type mapping.
+
+When neither is set, the generator runs fully offline and types every attribute as `String`.

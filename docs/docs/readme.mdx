@@ -1,0 +1,42 @@
+---
+title: Overview
+---
+
+The Infrahub Terraform Provider Generator is a Go tool that builds a custom Terraform provider for Infrahub directly from your GraphQL queries. Point it at a directory of `.gql` files and it generates the provider's resources and data sources for you, with no hand-written provider boilerplate.
+
+## What you can do with it
+
+Generate a provider tailored to your Infrahub schema, then manage Infrahub the way you manage the rest of your infrastructure:
+
+- **Generate a Terraform provider from GraphQL.** Drop your Infrahub queries into a directory and get provider source with the boilerplate written for you.
+- **Manage Infrahub objects as Terraform resources.** Every mutation set becomes a resource with full create, read, update, and delete support.
+- **Read Infrahub data into Terraform.** Every read query becomes a data source, either a single-object lookup by key or a list.
+- **Pull rendered artifacts into your configuration.** Enable the artifact data source to fetch generated artifacts from Infrahub's storage API.
+- **Regenerate as your model evolves.** Add or remove a `.gql` file and re-run; the provider, resources, and data sources are rewritten to match.
+
+## Who this is for
+
+**Infrahub users adopting Terraform.** You already manage infrastructure with Terraform and want Infrahub objects in the same workflow. Supply the GraphQL queries for the objects you care about and generate a provider scoped to your schema. Start with the [Getting started](tutorials/getting-started) tutorial.
+
+**Provider builders and contributors.** You want a reference for how an Infrahub Terraform provider is structured, or you want to extend the generator's templates and parser. See the [Architecture](reference/architecture) reference.
+
+## How it fits together
+
+The generator reads `.gql` files and writes Go source. Each read query becomes a data source, each create / upsert / delete mutation set becomes a resource, and a final `provider.go` registers them all. The generated provider is built on the [Terraform Plugin Framework](https://developer.hashicorp.com/terraform/plugin/framework) and talks to Infrahub through a [genqlient](https://github.com/Khan/genqlient)-generated Go SDK.
+
+This tool generates the provider's source code. Compiling, versioning, and publishing the provider are separate steps in your own build pipeline.
+
+## Where to go next
+
+| Goal | Page |
+| --- | --- |
+| Run the generator for the first time | [Getting started](tutorials/getting-started) |
+| Lay out your `.gql` files correctly | [GraphQL file layout](guides/graphql-file-layout) |
+| Get typed attributes from the live schema | [Schema typing](guides/schema-typing) |
+| Match the SDK's scalar bindings | [SDK bindings](guides/sdk-bindings) |
+| Look up every CLI flag | [CLI reference](reference/cli) |
+| Understand the components | [Architecture](reference/architecture) |
+
+## About Infrahub
+
+[Infrahub](https://github.com/opsmill/infrahub) is an open source infrastructure data management and automation platform (Apache 2.0), developed by [OpsMill](https://opsmill.com). It gives infrastructure and network teams a unified, schema-driven source of truth for all infrastructure data, with built-in version control, a generator framework for automation, and native integrations with Git, Ansible, Terraform, and CI/CD pipelines.

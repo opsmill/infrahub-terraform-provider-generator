@@ -1,0 +1,57 @@
+---
+title: GraphQL file layout
+---
+
+# GraphQL file layout
+
+The parser that reads your `.gql` files is line-oriented. It walks the document brace by brace rather than running a full GraphQL parser, so the way you lay out a query matters. This guide describes the layout the generator expects.
+
+## One field per line
+
+Each selected field must sit on its own line. The parser keys off line boundaries to track which relationship block a field belongs to, so collapsing several fields onto one line is not supported.
+
+## Relationship blocks open on their own line
+
+A relationship block opens with `<name> {` on its own line:
+
+```graphql
+edges {
+  node {
+    fqdn {
+      value
+    }
+  }
+}
+```
+
+The parser uses the brace depth to build the relationship prefix for each leaf attribute, which is why the opening brace has to be on the same line as the relationship name.
+
+## Scalar attributes: single-line or multi-line
+
+A scalar attribute may be selected on a single line:
+
+```graphql
+fqdn { value }
+```
+
+or spread across lines:
+
+```graphql
+fqdn {
+  value
+}
+```
+
+Both forms are accepted; the parser normalizes single-line scalar blocks before walking the document.
+
+## Resource documents
+
+A resource document is one create, one upsert, and one delete mutation, followed by a single-result read query. The create / upsert / delete operation names are taken verbatim from the mutations so the generated code calls the matching SDK functions.
+
+The read query **must select the node's own `id`**. The generator uses that field to read the object back after a create or update; a resource document that does not select `id` is rejected.
+
+A document that leads with a mutation is generated as a resource. A document that leads with a query is generated as a data source.
+
+## Inline single-line documents are not supported
+
+Because the parser is line-oriented, a document written entirely on one line cannot be parsed. Keep each operation, selection, and brace on its own line as shown above.
