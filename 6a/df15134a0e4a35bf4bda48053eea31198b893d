@@ -1,0 +1,21 @@
+pkg/parser/generators.go
+  s_33582454805a52::t_48c03fa8545c10 135
+pkg/parser/parser.go
+  s_33582454805a52::t_b9be4f7a834589 435-436
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "6adf15134a0e4a35bf4bda48053eea31198b893d",
+  "prompts": {},
+  "sessions": {
+    "s_33582454805a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "61c2da70-70db-4bad-88cb-72bf29ac0f3b",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Benoit Kohler <benoit+claude@opsmill.com>"
+    }
+  }
+}
