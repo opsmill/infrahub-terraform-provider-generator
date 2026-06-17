@@ -129,6 +129,9 @@ func walkSelection(set ast.SelectionSet, stack []string, doc *ast.QueryDocument)
 	for _, sel := range set {
 		switch s := sel.(type) {
 		case *ast.Field:
+			if s.Alias != "" && s.Alias != s.Name {
+				return nil, fmt.Errorf("parsing GraphQL query: alias %q on field %q is unsupported; remove the alias", s.Alias, s.Name)
+			}
 			if len(s.SelectionSet) == 0 || isScalarSelection(s.SelectionSet, doc) {
 				out = append(out, fieldPath{parts: appendPart(stack, s.Name)})
 				continue
