@@ -113,7 +113,7 @@ free: fields may share a line, selections may be inlined, indentation is
 irrelevant, and `#` comments are ignored anywhere (including comments that
 contain braces).
 
-**Supported**
+### Supported
 
 - Any syntactically valid GraphQL document following Infrahub's conventions
   (`edges`/`node` nesting, `{ value }` scalar selections, the
@@ -122,8 +122,9 @@ contain braces).
   matching `fragment NodeFields on <Kind> { ... }`. These are flattened into the
   selection and generate the same source as writing the fields inline.
 
-**Unsupported (rejected with a clear, file-naming error — never silently
-mis-generated)**
+### Unsupported
+
+Rejected with a clear, file-naming error — never silently mis-generated:
 
 - Field aliases (`alias: field`) — the alias would rename the genqlient Go
   field and break the generated access path.
