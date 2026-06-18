@@ -1,0 +1,119 @@
+package provider
+
+import (
+	"context"
+	"fmt"
+
+	infrahub_sdk "github.com/opsmill/infrahub-sdk-go"
+
+	"github.com/Khan/genqlient/graphql"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
+)
+
+// Ensure the implementation satisfies the expected interfaces.
+var (
+	_ datasource.DataSource              = &dctVCenterByNameDataSource{}
+	_ datasource.DataSourceWithConfigure = &dctVCenterByNameDataSource{}
+)
+
+// NewDctvcenterbynameDataSource is a helper function to simplify the provider implementation.
+func NewDctvcenterbynameDataSource() datasource.DataSource {
+	return &dctVCenterByNameDataSource{}
+}
+
+type dctVCenterByNameDataSource struct {
+	client             *graphql.Client
+	Vcenter_name       types.String `tfsdk:"vcenter_name"`
+	Edges_node_id      types.String `tfsdk:"id"`
+	Edges_node_fqdn    types.String `tfsdk:"fqdn"`
+	Edges_node_version types.String `tfsdk:"version"`
+}
+
+func (d *dctVCenterByNameDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_dctVCenterByName"
+}
+
+func (d *dctVCenterByNameDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"vcenter_name": schema.StringAttribute{
+				Required: true,
+			},
+			"id": schema.StringAttribute{
+				Computed: true,
+			},
+			"fqdn": schema.StringAttribute{
+				Computed: true,
+			},
+			"version": schema.StringAttribute{
+				Computed: true,
+			},
+		},
+	}
+}
+
+func (d *dctVCenterByNameDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	tflog.Info(ctx, "Reading dctVCenterByName data...")
+	var config dctVCenterByNameDataSource
+
+	// Read configuration into config
+	diags := req.Config.Get(ctx, &config)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	response, err := infrahub_sdk.DctVCenterByName(ctx, *d.client, config.Vcenter_name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read dctVCenterByName from Infrahub",
+			err.Error(),
+		)
+		return
+	}
+
+	if len(response.DctVCenter.Edges) != 1 {
+		resp.Diagnostics.AddError(
+			"Didn't receive a single dctVCenterByName, query didn't return exactly 1 dctVCenterByName",
+			"Expected exactly 1 dctVCenterByName in response, got a different count.",
+		)
+		return
+	}
+
+	state := dctVCenterByNameDataSource{
+		Vcenter_name:       config.Vcenter_name,
+		Edges_node_id:      types.StringValue(response.DctVCenter.Edges[0].Node.Id),
+		Edges_node_fqdn:    types.StringValue(response.DctVCenter.Edges[0].Node.Fqdn.Value),
+		Edges_node_version: types.StringValue(response.DctVCenter.Edges[0].Node.Version.Value),
+	}
+
+	// Set state
+	diags = resp.State.Set(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+}
+
+// Configure adds the provider configured client to the data source.
+func (d *dctVCenterByNameDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	// Add a nil check when handling ProviderData because Terraform
+	// sets that data after it calls the ConfigureProvider RPC.
+	if req.ProviderData == nil {
+		return
+	}
+
+	client, ok := req.ProviderData.(graphql.Client)
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Unexpected Data Source Configure Type",
+			fmt.Sprintf("Expected *graphql.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+		)
+
+		return
+	}
+
+	d.client = &client
+}

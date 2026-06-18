@@ -26,7 +26,7 @@ Generate a provider tailored to your Infrahub schema, then manage Infrahub the w
 
 ## Prerequisites
 
-- [Go](https://go.dev) 1.23+ to run the generator
+- [Go](https://go.dev) 1.25+ to run the generator
 - A directory of Infrahub GraphQL queries (`.gql` files) — queries become data sources, mutations become resources
 - A running [Infrahub](https://github.com/opsmill/infrahub) instance and an API key for the generated provider to use at apply time
 
@@ -53,6 +53,20 @@ go run github.com/opsmill/infrahub-terraform-provider-generator/cmd/generator \
 | `-infrahub-address` | `$INFRAHUB_ADDRESS` | Infrahub base URL; with `-api-token`, attribute types are read from the live schema |
 | `-api-token` | `$INFRAHUB_API_TOKEN` | API token, sent as the `X-INFRAHUB-KEY` header |
 | `-branch` | `main` | Infrahub branch to read the schema from |
+
+### Query structure
+
+The generator derives the access paths into the generated SDK from each query's
+shape, so the selection follows Infrahub's conventions: objects are read through
+the `edges` / `node` nesting, and a scalar attribute is selected as a `{ value }`
+sub-selection (`fqdn { value }`). Formatting itself is free — see
+[GraphQL input support](#graphql-input-support) below.
+
+A resource document is one create, one upsert and one delete mutation followed
+by a single-result read query, and its read query **must select the node's own
+`id`** (the generator reads the object back through it after a create or update).
+A document that leads with a mutation becomes a resource; one that leads with a
+query becomes a data source.
 
 ### Attribute typing from the schema
 
@@ -89,6 +103,40 @@ offline and types every attribute as `String`, exactly as before.
 > number, which genqlient maps cleanly to `int64`; `DateTime` is an ISO-8601
 > string. (`int64` covers values up to ~9.2×10¹⁸, matching Terraform's
 > `types.Int64`.)
+
+---
+
+## GraphQL input support
+
+The generator parses each `.gql` file with a GraphQL grammar, so formatting is
+free: fields may share a line, selections may be inlined, indentation is
+irrelevant, and `#` comments are ignored anywhere (including comments that
+contain braces).
+
+### Supported
+
+- Any syntactically valid GraphQL document following Infrahub's conventions
+  (`edges`/`node` nesting, `{ value }` scalar selections, the
+  `<Kind>Create`/`Upsert`/`Delete` mutation-name convention).
+- Named fragment spreads on the queried type, e.g. `...NodeFields` with a
+  matching `fragment NodeFields on <Kind> { ... }`. These are flattened into the
+  selection and generate the same source as writing the fields inline.
+
+### Unsupported
+
+Rejected with a clear, file-naming error — never silently mis-generated:
+
+- Field aliases (`alias: field`) — the alias would rename the genqlient Go
+  field and break the generated access path.
+- Inline / type-condition fragments (`... on Kind`) — these map to genqlient
+  interface types and type assertions, not flat paths.
+- Custom or built-in directives (`@include`, `@skip`, …).
+
+> **genqlient compatibility (maintainers):** named-fragment support assumes the
+> SDK's genqlient (in `infrahub-terraform-provider-template`) inlines the same
+> fragment spreads to the same Go field names this generator does. This holds
+> for same-type spreads. When adding a query that uses a fragment, verify once
+> that the generated provider compiles against the genqlient-built SDK.
 
 ---
 

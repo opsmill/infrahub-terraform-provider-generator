@@ -1,0 +1,53 @@
+---
+title: Schema typing
+---
+
+# Schema typing
+
+By default every attribute is generated as a Terraform `String`. When you give the generator access to a live Infrahub instance, it reads the schema and types each attribute from its Infrahub kind instead.
+
+## Turn on typing
+
+Pass the connection flags so the generator can read the schema:
+
+- `-infrahub-address` sets the Infrahub base URL.
+- `-api-token` sets the API token, sent as the `X-INFRAHUB-KEY` header.
+- `-branch` selects the Infrahub branch to read the schema from (defaults to `main`).
+
+Both `-infrahub-address` and `-api-token` must be set together. Each also falls back to an environment variable (`INFRAHUB_ADDRESS` and `INFRAHUB_API_TOKEN`) when the flag is empty. See the [CLI reference](../reference/cli) for the full table.
+
+## How kinds map to Terraform types
+
+For the chosen branch, the generator types each attribute from its Infrahub kind:
+
+| Infrahub kind | Terraform type |
+| --- | --- |
+| `Number` | `types.Int64` |
+| `Boolean` / `Checkbox` | `types.Bool` |
+| everything else | `types.String` |
+
+## The filter or key attribute
+
+The filter / key attribute (the field your lookup query filters on) is typed the same way. For a non-text key, the `.gql` lookup query must declare a matching variable type. For example, a `Number` key needs a `BigInt` variable:
+
+```graphql
+query DeviceByAsn($asn: BigInt!) {
+  # ...
+}
+```
+
+## Required versus optional attributes
+
+Attributes the schema marks required (`optional: false`) are generated as Terraform `Required` and always sent. Optional attributes are sent only when set.
+
+## Data sources are typed too
+
+Read queries are typed from the schema in the same way, so data source attributes come back with the right Terraform types rather than as strings.
+
+## Staying offline
+
+Without the connection flags the generator stays fully offline and types every attribute as `String`. This is the original behavior and remains the default. If the instance is unreachable or returns an empty schema, attributes fall back to `String` as well.
+
+:::note
+The SDK's scalar bindings must line up with the types the generator emits. See [SDK bindings](sdk-bindings) before you build the generated provider.
+:::

@@ -1,0 +1,18 @@
+# Generated Terraform provider output
+internal/provider/
+
+# Build artifacts
+bin/
+/generator
+
+# Test and coverage output
+coverage.out
+coverage.html
+*.test
+*.out
+
+# Editor / OS junk
+.DS_Store
+.idea/
+.vscode/
+*.swp

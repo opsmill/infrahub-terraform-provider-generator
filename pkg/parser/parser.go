@@ -1,273 +1,102 @@
 package parser
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/opsmill/infrahub-terraform-provider-generator/pkg/schema"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
+	"github.com/vektah/gqlparser/v2/ast"
+	"github.com/vektah/gqlparser/v2/parser"
 )
 
+// errMissingQueryName is returned when a document has no parseable read query,
+// and therefore no name from which to derive a Terraform component.
+var errMissingQueryName = errors.New("parsing GraphQL query: missing query name")
+
+// parseGraphQLQuery parses and classifies a GraphQL document into the
+// intermediate representation the templates render. A leading mutation makes it
+// a resource; a leading query makes it a data source.
 func parseGraphQLQuery(query string, reg *schema.Registry) (*InputGraphQLQuery, error) {
-	var resourceType ResourceType
+	doc, err := parser.ParseQuery(&ast.Source{Name: "query.gql", Input: query})
+	if err != nil {
+		return nil, fmt.Errorf("parsing GraphQL query: %w", err)
+	}
+
+	resourceType, ok := detectResourceType(doc)
+	if !ok {
+		return nil, errors.New("parsing GraphQL query: document contains neither a query nor a mutation")
+	}
+
 	var result InputGraphQLQuery
-	var err error
-	lines := strings.Split(query, "\n")
-
-	for _, line := range lines {
-		if strings.Contains(line, "mutation") {
-			resourceType = Resource
-			break
-		} else if strings.Contains(line, "query") {
-			resourceType = DataSource
-			break
-		}
+	switch resourceType {
+	case Resource:
+		result, err = parseResourceInput(doc, reg)
+	case DataSource:
+		result, err = parseDataSourceInput(doc, reg)
 	}
-
-	if resourceType == DataSource {
-		result, err = parseDataSourceInput(lines, reg)
-		result.ResourceType = DataSource
-	} else if resourceType == Resource {
-		result, err = parseResourceInput(lines, reg)
-		result.ResourceType = Resource
-	}
-
 	if err != nil {
 		return nil, err
 	}
 
+	result.ResourceType = resourceType
 	return &result, nil
 }
 
-func parseResourceInput(lines []string, reg *schema.Registry) (InputGraphQLQuery, error) {
-	var queryName, required, objectName, parentPrefix string
-	var inBlock bool
-	var prefixList, prefixListImmutable []string
-	var fields []Field
+// parseResourceInput parses a resource document (create/upsert/delete mutations
+// plus a single-result read query) into the IR. The struct fields, schema
+// attributes and read-back all derive from the read query's selection; the
+// create/upsert/delete operation names are taken verbatim from the mutations so
+// the generated code calls the matching genqlient functions.
+func parseResourceInput(doc *ast.QueryDocument, reg *schema.Registry) (InputGraphQLQuery, error) {
+	objectName, required, varTypes, paths, err := collectFields(doc)
+	if err != nil {
+		return InputGraphQLQuery{}, err
+	}
+	queryName, readOp := queryNameAndOp(doc)
+	if queryName == "" {
+		return InputGraphQLQuery{}, errMissingQueryName
+	}
+
 	var genqlientFields, genqlientFieldsModify, genqlientFieldsReadOnly []GenqlientField
-
-	// Capture the actual operation names as written in the .gql so the generated
-	// code calls the matching genqlient functions. genqlient names each generated
-	// function after the GraphQL operation, so the query/mutation operation names
-	// (not the query alias or the object kind) are what must be used.
-	var readOp, createOp, upsertOp, deleteOp string
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		isQuery := strings.HasPrefix(trimmed, "query ")
-		isMutation := strings.HasPrefix(trimmed, "mutation ")
-		if !isQuery && !isMutation {
-			continue
-		}
-		parts := strings.Fields(trimmed)
-		if len(parts) < 2 {
-			continue
-		}
-		opName := parts[1]
-		if i := strings.IndexByte(opName, '('); i != -1 {
-			opName = opName[:i]
-		}
-		opName = strings.TrimRight(strings.TrimSpace(opName), "{(")
-		if opName == "" {
-			continue
-		}
-		switch {
-		case isQuery:
-			readOp = opName
-		case strings.HasSuffix(opName, "Create"):
-			createOp = opName
-		case strings.HasSuffix(opName, "Upsert"):
-			upsertOp = opName
-		case strings.HasSuffix(opName, "Delete"):
-			deleteOp = opName
-		}
-	}
-
-	index := 0
-	for number, line := range lines {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "query ") {
-			parts := strings.Fields(line)
-			if len(parts) > 1 {
-				containsBracket := strings.IndexByte(parts[1], '(')
-				if containsBracket != -1 {
-					queryName = parts[1][:containsBracket]
-				} else {
-					queryName = parts[1]
-				}
-				queryName = strings.ToLower(string(queryName[0])) + queryName[1:]
+	var idFieldName string
+	for _, fp := range paths {
+		// Resources read the node's id through GetId() (the mutation response
+		// types expose it as a method, not a field).
+		field, readOnly := buildField(objectName, required, fp, true)
+		if readOnly {
+			genqlientFieldsReadOnly = append(genqlientFieldsReadOnly, field)
+			// The node's own UUID is the read-only field whose human-readable
+			// name is exactly "id"; related ids carry their relationship prefix.
+			if field.HumanReadableName == "id" {
+				idFieldName = field.Name
 			}
-			index = number
-		} else if index != 0 && number == index+1 {
-			// This identifies the required field (e.g., name__value: $device_name)
-			if strings.Contains(line, ":") {
-				parts := strings.Split(line, ":")
-				required = parts[1][strings.Index(parts[1], "$")+1 : strings.Index(parts[1][strings.Index(parts[1], "$"):], " ")+strings.Index(parts[1], "$")]
-				required = strings.TrimRight(required, ")")
-				objectNameParts := strings.Split(parts[0], "(")
-				objectName = objectNameParts[0]
-			} else {
-				parts := strings.Split(line, " ")
-				objectName = parts[0]
-			}
-		}
-	}
-
-	for number, line := range lines[index:] {
-
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "query ") || number == 1 {
-		} else if strings.HasSuffix(line, " {") {
-			inBlock = true
-			prefix := line[:len(line)-2]
-			prefixList = append(prefixList, prefix)
-			if strings.Contains(prefix, "_") {
-				prefixListImmutable = append(prefixListImmutable, prefix)
-			}
-			parentPrefix = parentPrefix + prefix + "_"
-		} else if line == "}" {
-			inBlock = false
-			if strings.Count(parentPrefix, "_") < 2 {
-				parentPrefix = ""
-				break
-			}
-			// remove last _ and length of last prefix added, workaround for underscores in schema
-			parentPrefix = parentPrefix[:len(parentPrefix)-1-len(prefixList[len(prefixList)-1])]
-			prefixList = prefixList[:len(prefixList)-1]
-		} else if inBlock {
-			parts := strings.Fields(line)
-			if len(parts) > 0 {
-				fields = append(fields, Field{
-					Name: parentPrefix + strings.TrimSpace(parts[0]),
-					Type: "String",
-				})
-				if strings.Contains(parts[0], "_") {
-					prefixListImmutable = append(prefixListImmutable, parts[0])
-				}
-			}
-		}
-	}
-
-	customSplit := func(str string, exceptions []string) []string {
-		var result []string
-		var currentWord string
-
-		for _, char := range str {
-			if char == '_' {
-				isException := false
-				for _, exception := range exceptions {
-					if strings.HasPrefix(exception, currentWord) {
-						if len(currentWord) == len(exception) {
-							break
-						}
-						isException = true
-						break
-					}
-				}
-				if !isException {
-					result = append(result, currentWord)
-					currentWord = ""
-				} else {
-					currentWord += string(char)
-				}
-			} else {
-				currentWord += string(char)
-			}
-		}
-		result = append(result, currentWord)
-		return result
-	}
-
-	for _, entry := range fields {
-		parts := customSplit(entry.Name, prefixListImmutable)
-
-		// Capitalize each part except for the first one
-		caser := cases.Title(language.English)
-		var filtered, noPrefix, plain []string
-
-		for i := range parts {
-			// Capitalize the first letter of each part
-			parts[i] = caser.String(parts[i])
-			plain = append(plain, parts[i])
-			if parts[i] != "Edges" && parts[i] != "Node" {
-				noPrefix = append(noPrefix, parts[i])
-				filtered = append(filtered, parts[i])
-			}
-			if required != "" {
-				if parts[i] == "Edges" {
-					parts[i] = "Edges[0]"
-				}
-			} else {
-				if parts[i] == "Edges" {
-					parts[i] = "Edges[i]"
-				}
-			}
-		}
-
-		for _, x := range [][]string{parts, noPrefix, plain} {
-			if len(x) > 0 && x[len(x)-1] == "Id" {
-				x[len(x)-1] = "GetId()"
-			}
-		}
-
-		// Scalar attributes are selected as `attr { value }`, so genqlient nests
-		// the string under a `.Value` field. The id is read through GetId() and
-		// must not get a `.Value` suffix.
-		valueSuffix := ".Value"
-		if len(plain) > 0 && plain[len(plain)-1] == "GetId()" {
-			valueSuffix = ""
-		}
-
-		newField := GenqlientField{
-			Field: Field{
-				Name: entry.Name,
-				Type: entry.Type,
-			},
-			Query:                  objectName + "." + strings.Join(parts, ".") + valueSuffix,
-			QueryNoPrefixReplaceId: strings.Join(noPrefix, "."),
-			InputObjectNames:       strings.Join(filtered, "."),
-			PlainObject:            strings.Join(plain[2:], ".") + valueSuffix,
-		}
-
-		// Only fields read through GetId() (the node's own server-assigned UUID,
-		// and any related node's id) are read-only; they carry no `.Value`
-		// suffix. Every other selected scalar ends in `.Value` and is a real
-		// attribute the user can set, so it must be configurable. The earlier
-		// heuristic counted the substring "id" in the access path and wrongly
-		// forced any attribute whose name merely contained "id" (id_projet,
-		// vlan_id, …) to be read-only.
-		if valueSuffix == "" {
-			genqlientFieldsReadOnly = append(genqlientFieldsReadOnly, newField)
 		} else {
 			// Stamp schema-derived type info only on configurable fields; the
-			// read-only id is always a string UUID and must never be typed.
-			// objectName is the node kind (namespace+name); the attribute name
-			// is the field name without the edges_node_ prefix. A nil registry
-			// or a miss leaves Kind="" (String) and Optional=true, reproducing
-			// the untyped default.
-			newField.Optional = true
-			if attr, ok := reg.Attribute(objectName, humanReadableName(newField.Name)); ok {
-				newField.Kind = attr.Kind
-				newField.Optional = attr.Optional
+			// read-only id is always a string UUID and must never be typed. A
+			// nil registry or a miss leaves Kind="" (String) and Optional=true,
+			// reproducing the untyped default.
+			field.Optional = true
+			if attr, ok := reg.Attribute(objectName, field.HumanReadableName); ok {
+				field.Kind = attr.Kind
+				field.Optional = attr.Optional
 			}
-			genqlientFieldsModify = append(genqlientFieldsModify, newField)
+			genqlientFieldsModify = append(genqlientFieldsModify, field)
 		}
-		genqlientFields = append(genqlientFields, newField)
+		genqlientFields = append(genqlientFields, field)
 	}
 
-	if queryName == "" {
-		return InputGraphQLQuery{}, fmt.Errorf("failed to parse GraphQL query: missing query name")
+	if idFieldName == "" {
+		return InputGraphQLQuery{}, fmt.Errorf("parsing GraphQL query %q: a resource must select the node's own id", queryName)
+	}
+	if required == "" {
+		return InputGraphQLQuery{}, fmt.Errorf("parsing GraphQL query %q: a resource's read query must filter by a key variable (e.g. name__value: $name) so the object can be read back", queryName)
 	}
 
-	addHumanReadableField(genqlientFields)
-	addHumanReadableField(genqlientFieldsReadOnly)
-	addHumanReadableField(genqlientFieldsModify)
-
-	// Fall back to the Infrahub naming convention (<Kind><Op>) when an operation
-	// name could not be read from the .gql.
-	if readOp == "" && queryName != "" {
-		readOp = strings.ToUpper(queryName[:1]) + queryName[1:]
-	}
+	createOp, upsertOp, deleteOp := operationNames(doc)
+	// Fall back to the Infrahub <Kind><Op> convention when an operation name
+	// could not be read from the document.
 	if createOp == "" {
 		createOp = objectName + "Create"
 	}
@@ -282,212 +111,164 @@ func parseResourceInput(lines []string, reg *schema.Registry) (InputGraphQLQuery
 		QueryName:               queryName,
 		ObjectName:              objectName,
 		Required:                required,
-		RequiredField:           stampRequired(required, objectName, reg),
+		RequiredField:           stampRequired(required, objectName, varTypes[required], reg),
 		ReadOp:                  readOp,
 		CreateOp:                createOp,
 		UpsertOp:                upsertOp,
 		DeleteOp:                deleteOp,
+		IDFieldName:             idFieldName,
 		GenqlientFields:         genqlientFields,
-		genqlientFieldsReadOnly: genqlientFieldsReadOnly,
 		genqlientFieldsModify:   genqlientFieldsModify,
+		genqlientFieldsReadOnly: genqlientFieldsReadOnly,
 	}, nil
 }
 
 // parseDataSourceInput parses a read query into a data source, stamping each
 // field's Kind/Optional from the schema registry so reads are type-correct.
-func parseDataSourceInput(lines []string, reg *schema.Registry) (InputGraphQLQuery, error) {
-	var queryName, required, objectName, parentPrefix, readOp string
-	var fields []Field
-	var genqlientFields []GenqlientField
-	var inBlock bool
-	var prefixList, prefixListImmutable []string
-
-	for number, line := range lines {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "query ") {
-			parts := strings.Fields(line)
-			if len(parts) > 1 {
-				containsBracket := strings.IndexByte(parts[1], '(')
-				if containsBracket != -1 {
-					queryName = parts[1][:containsBracket]
-				} else {
-					queryName = parts[1]
-				}
-				// Keep the operation name as written so the generated code
-				// calls the matching genqlient function; genqlient names each
-				// function after the GraphQL operation, not the lowercased alias.
-				readOp = queryName
-				queryName = strings.ToLower(string(queryName[0])) + queryName[1:]
-			}
-		} else if number == 1 {
-			// This identifies the required field (e.g., name__value: $device_name)
-			if strings.Contains(line, ":") {
-				parts := strings.Split(line, ":")
-				required = parts[1][strings.Index(parts[1], "$")+1 : strings.Index(parts[1][strings.Index(parts[1], "$"):], " ")+strings.Index(parts[1], "$")]
-				required = strings.TrimRight(required, ")")
-				objectNameParts := strings.Split(parts[0], "(")
-				objectName = objectNameParts[0]
-			} else {
-				parts := strings.Split(line, " ")
-				objectName = parts[0]
-			}
-		} else if strings.HasSuffix(line, " {") {
-			inBlock = true
-			prefix := line[:len(line)-2]
-			prefixList = append(prefixList, prefix)
-			if strings.Contains(prefix, "_") {
-				prefixListImmutable = append(prefixListImmutable, prefix)
-			}
-			parentPrefix = parentPrefix + prefix + "_"
-		} else if line == "}" {
-			inBlock = false
-			if strings.Count(parentPrefix, "_") < 2 {
-				parentPrefix = ""
-				break
-			}
-			// remove last _ and length of last prefix added, workaround for underscores in schema
-			parentPrefix = parentPrefix[:len(parentPrefix)-1-len(prefixList[len(prefixList)-1])]
-			prefixList = prefixList[:len(prefixList)-1]
-		} else if inBlock {
-			parts := strings.Fields(line)
-			if len(parts) > 0 {
-				fields = append(fields, Field{
-					Name: parentPrefix + strings.TrimSpace(parts[0]),
-					Type: "String",
-				})
-				if strings.Contains(parts[0], "_") {
-					prefixListImmutable = append(prefixListImmutable, parts[0])
-				}
-			}
-		}
+func parseDataSourceInput(doc *ast.QueryDocument, reg *schema.Registry) (InputGraphQLQuery, error) {
+	objectName, required, varTypes, paths, err := collectFields(doc)
+	if err != nil {
+		return InputGraphQLQuery{}, err
 	}
-
-	customSplit := func(str string, exceptions []string) []string {
-		var result []string
-		var currentWord string
-
-		for _, char := range str {
-			if char == '_' {
-				isException := false
-				for _, exception := range exceptions {
-					if strings.HasPrefix(exception, currentWord) {
-						if len(currentWord) == len(exception) {
-							break
-						}
-						isException = true
-						break
-					}
-				}
-				if !isException {
-					result = append(result, currentWord)
-					currentWord = ""
-				} else {
-					currentWord += string(char)
-				}
-			} else {
-				currentWord += string(char)
-			}
-		}
-		result = append(result, currentWord)
-		return result
-	}
-
-	for _, entry := range fields {
-		parts := customSplit(entry.Name, prefixListImmutable)
-
-		// Capitalize each part except for the first one
-		caser := cases.Title(language.English)
-		for i := range parts {
-			// Capitalize the first letter of each part
-			parts[i] = caser.String(parts[i])
-			if required != "" {
-				if parts[i] == "Edges" {
-					parts[i] = "Edges[0]"
-				}
-			} else {
-				if parts[i] == "Edges" {
-					parts[i] = "Edges[i]"
-				}
-			}
-		}
-
-		// Scalar attributes are selected as `attr { value }`, so genqlient nests
-		// the value under a `.Value` field. The node's own id is a plain string
-		// field read directly, with no `.Value` suffix.
-		valueSuffix := ".Value"
-		if len(parts) > 0 && parts[len(parts)-1] == "Id" {
-			valueSuffix = ""
-		}
-
-		newField := GenqlientField{
-			Field: Field{
-				Name: entry.Name,
-				Type: entry.Type,
-			},
-			Query: objectName + "." + strings.Join(parts, ".") + valueSuffix,
-		}
-
-		// Stamp schema-derived type info so the data source reads the value into
-		// the right Terraform type. A nil registry or a miss (e.g. the id, which
-		// is not a schema attribute) leaves Kind="" (String).
-		newField.Optional = true
-		if attr, ok := reg.Attribute(objectName, humanReadableName(newField.Name)); ok {
-			newField.Kind = attr.Kind
-			newField.Optional = attr.Optional
-		}
-		genqlientFields = append(genqlientFields, newField)
-	}
-
+	queryName, readOp := queryNameAndOp(doc)
 	if queryName == "" {
-		return InputGraphQLQuery{}, fmt.Errorf("failed to parse GraphQL query: missing query name")
+		return InputGraphQLQuery{}, errMissingQueryName
 	}
 
-	addHumanReadableField(genqlientFields)
-
-	// Fall back to the Infrahub naming convention when the operation name could
-	// not be read from the .gql.
-	if readOp == "" && queryName != "" {
-		readOp = strings.ToUpper(queryName[:1]) + queryName[1:]
+	var genqlientFields []GenqlientField
+	for _, fp := range paths {
+		// Data sources read the node's id as a plain `.Id` field (the query
+		// response types expose it directly), not through GetId().
+		field, _ := buildField(objectName, required, fp, false)
+		field.Optional = true
+		if attr, ok := reg.Attribute(objectName, field.HumanReadableName); ok {
+			field.Kind = attr.Kind
+			field.Optional = attr.Optional
+		}
+		genqlientFields = append(genqlientFields, field)
 	}
 
 	return InputGraphQLQuery{
 		QueryName:       queryName,
 		ObjectName:      objectName,
 		Required:        required,
-		RequiredField:   stampRequired(required, objectName, reg),
+		RequiredField:   stampRequired(required, objectName, varTypes[required], reg),
 		ReadOp:          readOp,
 		GenqlientFields: genqlientFields,
 	}, nil
+}
+
+// fieldPath is a selected leaf attribute together with its relationship prefix
+// stack (e.g. ["edges", "node"]) captured during the brace-walk.
+type fieldPath struct {
+	parts []string // prefix frames followed by the attribute name
+}
+
+// buildField turns a captured field path into the GenqlientField the templates
+// consume, computing every access path they need. The node's own UUID and
+// related ids are selected as `id` and carry no `.Value` suffix; every other
+// scalar is read as `attr { value }` and so carries `.Value`. When idAsGetID is
+// set, an id is read through GetId() (mutation responses) instead of the `.Id`
+// field (query responses). readOnly reports whether the field is an id, which
+// is server-assigned and never configurable.
+func buildField(objectName, required string, fp fieldPath, idAsGetID bool) (field GenqlientField, readOnly bool) {
+	titled := make([]string, len(fp.parts))
+	for i, p := range fp.parts {
+		titled[i] = titleCaser.String(p)
+	}
+	readOnly = len(titled) > 0 && titled[len(titled)-1] == "Id"
+
+	// Edges are indexed: a single keyed lookup reads Edges[0]; an unfiltered
+	// list reads Edges[i].
+	edge := "Edges[i]"
+	if required != "" {
+		edge = "Edges[0]"
+	}
+
+	queryParts := make([]string, len(titled))
+	var noEdgeNode []string // path with Edges/Node frames removed (input + mutation response)
+	for i, p := range titled {
+		if p == "Edges" {
+			queryParts[i] = edge
+		} else {
+			queryParts[i] = p
+		}
+		if p != "Edges" && p != "Node" {
+			noEdgeNode = append(noEdgeNode, p)
+		}
+	}
+
+	valueSuffix := ".Value"
+	if readOnly {
+		valueSuffix = ""
+		if idAsGetID {
+			queryParts[len(queryParts)-1] = "GetId()"
+			if n := len(noEdgeNode); n > 0 {
+				noEdgeNode[n-1] = "GetId()"
+			}
+		}
+	}
+
+	name := strings.Join(fp.parts, "_")
+	field = GenqlientField{
+		Field:            Field{Name: name, HumanReadableName: humanReadableName(name)},
+		Query:            objectName + "." + strings.Join(queryParts, ".") + valueSuffix,
+		InputObjectNames: strings.Join(noEdgeNode, "."),
+		PlainObject:      strings.Join(noEdgeNode, ".") + valueSuffix,
+	}
+	return field, readOnly
+}
+
+// gqlTypeToKind maps a GraphQL scalar type to the equivalent Infrahub
+// AttributeKind understood by classOf, so the key attribute is typed from the
+// .gql variable declaration (which determines the generated SDK signature)
+// rather than guessed. String, ID and unknown scalars map to "" (string).
+func gqlTypeToKind(gqlType string) string {
+	switch gqlType {
+	case "Int", "BigInt", "Float", "Number":
+		return "Number"
+	case "Boolean":
+		return "Boolean"
+	default:
+		return ""
+	}
 }
 
 // humanReadableName is the attribute name as exposed in Terraform: the parsed
 // field name with the GraphQL edges_node_ prefix removed. It is also the key
 // used to look the attribute up in the schema registry.
 func humanReadableName(fieldName string) string {
-	return strings.ReplaceAll(fieldName, "edges_node_", "")
+	return strings.TrimPrefix(fieldName, "edges_node_")
 }
 
 // stampRequired builds the typed GenqlientField for the filter/key attribute.
-// The key carries no edges_node_ prefix, so its name is the attribute name
-// directly. A nil registry or a miss leaves Kind="" (String), preserving the
-// untyped default. The generated lookup passes this value to the SDK read
-// function, so the .gql must declare a matching query-variable type (e.g.
-// BigInt! for a Number key).
-func stampRequired(required, objectName string, reg *schema.Registry) GenqlientField {
+// The key type is taken from the .gql query-variable declaration (gqlType),
+// which is what determines the generated SDK function's parameter type and thus
+// what compiles; the schema registry only supplies Optional and a cross-check.
+// A class mismatch between the declared variable type and the schema kind is
+// warned about, since it usually means the .gql will not compile against the
+// generated SDK.
+func stampRequired(required, objectName, gqlType string, reg *schema.Registry) GenqlientField {
 	f := GenqlientField{Field: Field{Name: required, HumanReadableName: required}, Optional: true}
 	if required == "" {
 		return f
 	}
+	f.Kind = gqlTypeToKind(gqlType)
 	if attr, ok := reg.Attribute(objectName, required); ok {
-		f.Kind = attr.Kind
 		f.Optional = attr.Optional
+		if classOf(GenqlientField{Kind: attr.Kind}) != classOf(f) {
+			fmt.Fprintf(os.Stderr, "warning: key %q is declared %q in the .gql but %q in the schema; "+
+				"the generated lookup may not compile — align the .gql variable type with the schema\n",
+				required, gqlType, attr.Kind)
+		}
 	}
 	return f
 }
 
-func addHumanReadableField(fields []GenqlientField) {
-
-	for i, field := range fields {
-		fields[i].HumanReadableName = humanReadableName(field.Name)
+// lcFirst lower-cases the first rune of s.
+func lcFirst(s string) string {
+	if s == "" {
+		return s
 	}
+	return strings.ToLower(s[:1]) + s[1:]
 }

@@ -1,0 +1,52 @@
+---
+title: Getting started
+---
+
+# Getting started
+
+This tutorial walks you through generating a Terraform provider for Infrahub from a directory of GraphQL queries.
+
+## Prerequisites
+
+- [Go](https://go.dev) 1.25 or newer to run the generator.
+- A directory of Infrahub GraphQL queries (`.gql` files). Queries become data sources, and mutations become resources.
+- A running [Infrahub](https://github.com/opsmill/infrahub) instance and an API key for the generated provider to use at apply time.
+
+## See the available options
+
+Run the generator with `--help` to print every flag and its default:
+
+```bash
+go run github.com/opsmill/infrahub-terraform-provider-generator/cmd/generator --help
+```
+
+## Generate a provider
+
+Point the generator at a directory of `.gql` queries and tell it where to write the provider source:
+
+```bash
+go run github.com/opsmill/infrahub-terraform-provider-generator/cmd/generator \
+  -gql-dir gql \
+  -provider-dir internal/provider \
+  -artifacts
+```
+
+This reads every `.gql` file under `gql`, writes the generated provider source into `internal/provider`, and adds the artifact data source.
+
+## What you'll see
+
+When you run the generator against a directory of queries:
+
+1. It walks `-gql-dir` and reads every `.gql` file it finds.
+2. Each read query is written as `<name>_data_source.go`.
+3. Each mutation set (create / upsert / delete) is written as `<name>_resource.go`.
+4. With `-artifacts`, it also writes `artifact_data_source.go`.
+5. Finally it writes `provider.go`, registering every generated resource and data source.
+
+The result is a set of Go source files under `-provider-dir`, ready to be built into a Terraform provider that talks to Infrahub over GraphQL.
+
+## Next steps
+
+- Make sure your `.gql` files follow the [GraphQL query conventions](../guides/graphql-file-layout) the generator expects.
+- Turn on [schema typing](../guides/schema-typing) so attributes are generated with the right Terraform types instead of plain strings.
+- Check the [CLI reference](../reference/cli) for the full flag table and environment-variable fallbacks.

@@ -1,14 +1,12 @@
-package templates
-
-const ArtifactTemplateContent = `package provider
+package provider
 
 import (
 	"context"
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
-	"github.com/Khan/genqlient/graphql"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -16,22 +14,24 @@ import (
 )
 
 // Ensure the implementation satisfies the expected interfaces.
-var (
-	_ datasource.DataSource              = &artifactDataSource{}
-	_ datasource.DataSourceWithConfigure = &artifactDataSource{}
-)
+var _ datasource.DataSource = &artifactDataSource{}
 
 // NewArtifactDataSource is a helper function to simplify the provider implementation.
 func NewArtifactDataSource() datasource.DataSource {
 	return &artifactDataSource{}
 }
 
-// artifactDataSource is the data source implementation.
-type artifactDataSource struct {
-	client         *graphql.Client
-	ArtifactId types.String ` + "`tfsdk:\"artifact_id\"`" + `
-	InfrahubServer types.String ` + "`tfsdk:\"infrahub_server\"`" + `
-	Content    types.String ` + "`tfsdk:\"content\"`" + `
+// artifactDataSource is the data source implementation. It fetches an artifact
+// from Infrahub's storage API over HTTP; the storage endpoint is REST, not
+// GraphQL, so it does not use the provider's GraphQL client.
+type artifactDataSource struct{}
+
+// artifactDataSourceModel is the data source's configuration and state.
+type artifactDataSourceModel struct {
+	ArtifactId     types.String `tfsdk:"artifact_id"`
+	InfrahubServer types.String `tfsdk:"infrahub_server"`
+	ApiToken       types.String `tfsdk:"api_token"`
+	Content        types.String `tfsdk:"content"`
 }
 
 // Metadata returns the data source type name.
@@ -49,6 +49,10 @@ func (d *artifactDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 			"infrahub_server": schema.StringAttribute{
 				Required: true,
 			},
+			"api_token": schema.StringAttribute{
+				Optional:  true,
+				Sensitive: true,
+			},
 			"content": schema.StringAttribute{
 				Computed: true,
 			},
@@ -58,16 +62,16 @@ func (d *artifactDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 
 func (d *artifactDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	tflog.Info(ctx, "Reading Artifact...")
-	var config artifactDataSource
+	var config artifactDataSourceModel
 
 	diags := req.Config.Get(ctx, &config)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
 	url := fmt.Sprintf("%s/api/storage/object/%s", config.InfrahubServer.ValueString(), config.ArtifactId.ValueString())
-	artifactRequest, err := http.NewRequest("GET", url, nil)
-	httpClient := &http.Client{}
+	artifactRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to create Request",
@@ -75,7 +79,12 @@ func (d *artifactDataSource) Read(ctx context.Context, req datasource.ReadReques
 		)
 		return
 	}
+	// Authenticate when a token is supplied; some storage objects require it.
+	if !config.ApiToken.IsNull() {
+		artifactRequest.Header.Set("X-INFRAHUB-KEY", config.ApiToken.ValueString())
+	}
 
+	httpClient := &http.Client{Timeout: 30 * time.Second}
 	artifactResponse, err := httpClient.Do(artifactRequest)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -101,9 +110,10 @@ func (d *artifactDataSource) Read(ctx context.Context, req datasource.ReadReques
 		return
 	}
 
-	state := artifactDataSource{
+	state := artifactDataSourceModel{
 		ArtifactId:     config.ArtifactId,
 		InfrahubServer: config.InfrahubServer,
+		ApiToken:       config.ApiToken,
 		Content:        types.StringValue(string(body)),
 	}
 
@@ -113,24 +123,3 @@ func (d *artifactDataSource) Read(ctx context.Context, req datasource.ReadReques
 		return
 	}
 }
-
-// Configure adds the provider configured client to the data source.
-func (d *artifactDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
-	// Add a nil check when handling ProviderData because Terraform
-	// sets that data after it calls the ConfigureProvider RPC.
-	if req.ProviderData == nil {
-		return
-	}
-
-	client, ok := req.ProviderData.(graphql.Client)
-	if !ok {
-		resp.Diagnostics.AddError(
-			"Unexpected Data Source Configure Type",
-			fmt.Sprintf("Expected *graphql.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
-		)
-
-		return
-	}
-
-	d.client = &client
-}`

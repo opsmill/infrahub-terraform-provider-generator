@@ -1,0 +1,22 @@
+---
+# Pull Request Labeler Configuration
+# https://github.com/actions/labeler
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/**"
+          - "**/*.md"
+          - "**/*.mdx"
+
+go:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.go"
+          - "go.mod"
+          - "go.sum"
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
